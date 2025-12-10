@@ -1,0 +1,41 @@
+{
+  "name": "medical-queue-management-system",
+  "version": "1.0.0",
+  "description": "Smart Medical Queue Management System with Arabic Support",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "next": "^14.0.0",
+    "@supabase/supabase-js": "^2.38.0",
+    "@supabase/auth-helpers-nextjs": "^0.7.0",
+    "tailwindcss": "^3.3.0",
+    "lucide-react": "^0.263.0",
+    "qrcode.react": "^1.0.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
+    "axios": "^1.6.0",
+    "zustand": "^4.4.0",
+    "date-fns": "^2.30.0",
+    "react-hot-toast": "^2.4.1",
+    "next-intl": "^2.20.0",
+    "web-vitals": "^3.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.0",
+    "@types/node": "^20.4.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.27",
+    "@tailwindcss/forms": "^0.5.4",
+    "@tailwindcss/typography": "^0.5.10"
+  }
+}
