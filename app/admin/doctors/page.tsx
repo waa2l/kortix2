@@ -4,8 +4,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
 import { ArrowLeft, Upload, Download, Plus, Edit2, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -40,7 +38,6 @@ export default function DoctorsPage() {
       clinic: 'الأسنان',
     },
   ])
-  const [showForm, setShowForm] = useState(false)
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
