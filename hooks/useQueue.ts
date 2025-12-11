@@ -96,22 +96,20 @@ export function useQueue(clinicId: string) {
     try {
       const nextNumber = clinic.current_number + 1
 
-      // Update clinic current number
-      const { error: updateErr } = await supabase
-        .from('clinics')
-        .update({ current_number: nextNumber } as any)
+      // Update clinic current number - bypass types
+      const { error: updateErr } = await (supabase.from('clinics') as any)
+        .update({ current_number: nextNumber })
         .eq('id', clinicId)
 
       if (updateErr) throw updateErr
 
-      // Create queue call record
-      const { error: callErr } = await supabase
-        .from('queue_calls')
+      // Create queue call record - bypass types
+      const { error: callErr } = await (supabase.from('queue_calls') as any)
         .insert({
           clinic_id: clinicId,
           patient_number: nextNumber,
           status: 'called',
-        } as any)
+        })
 
       if (callErr) throw callErr
     } catch (err) {
@@ -126,9 +124,8 @@ export function useQueue(clinicId: string) {
     try {
       const previousNumber = clinic.current_number - 1
 
-      const { error: updateErr } = await supabase
-        .from('clinics')
-        .update({ current_number: previousNumber } as any)
+      const { error: updateErr } = await (supabase.from('clinics') as any)
+        .update({ current_number: previousNumber })
         .eq('id', clinicId)
 
       if (updateErr) throw updateErr
@@ -141,20 +138,18 @@ export function useQueue(clinicId: string) {
   const callSpecificPatient = useCallback(
     async (patientNumber: number) => {
       try {
-        const { error: updateErr } = await supabase
-          .from('clinics')
-          .update({ current_number: patientNumber } as any)
+        const { error: updateErr } = await (supabase.from('clinics') as any)
+          .update({ current_number: patientNumber })
           .eq('id', clinicId)
 
         if (updateErr) throw updateErr
 
-        const { error: callErr } = await supabase
-          .from('queue_calls')
+        const { error: callErr } = await (supabase.from('queue_calls') as any)
           .insert({
             clinic_id: clinicId,
             patient_number: patientNumber,
             status: 'called',
-          } as any)
+          })
 
         if (callErr) throw callErr
       } catch (err) {
@@ -167,9 +162,8 @@ export function useQueue(clinicId: string) {
   // Reset clinic queue
   const resetQueue = useCallback(async () => {
     try {
-      const { error: updateErr } = await supabase
-        .from('clinics')
-        .update({ current_number: 0 } as any)
+      const { error: updateErr } = await (supabase.from('clinics') as any)
+        .update({ current_number: 0 })
         .eq('id', clinicId)
 
       if (updateErr) throw updateErr
@@ -183,9 +177,8 @@ export function useQueue(clinicId: string) {
     if (!clinic) return
 
     try {
-      const { error: updateErr } = await supabase
-        .from('clinics')
-        .update({ is_active: !clinic.is_active } as any)
+      const { error: updateErr } = await (supabase.from('clinics') as any)
+        .update({ is_active: !clinic.is_active })
         .eq('id', clinicId)
 
       if (updateErr) throw updateErr
@@ -198,14 +191,13 @@ export function useQueue(clinicId: string) {
   const emergencyCall = useCallback(
     async (patientNumber: number) => {
       try {
-        const { error: callErr } = await supabase
-          .from('queue_calls')
+        const { error: callErr } = await (supabase.from('queue_calls') as any)
           .insert({
             clinic_id: clinicId,
             patient_number: patientNumber,
             is_emergency: true,
             status: 'called',
-          } as any)
+          })
 
         if (callErr) throw callErr
       } catch (err) {
@@ -219,12 +211,11 @@ export function useQueue(clinicId: string) {
   const transferPatient = useCallback(
     async (patientNumber: number, toClinicId: string) => {
       try {
-        const { error: updateErr } = await supabase
-          .from('queue_calls')
+        const { error: updateErr } = await (supabase.from('queue_calls') as any)
           .update({
             transferred_to_clinic_id: toClinicId,
             status: 'transferred',
-          } as any)
+          })
           .eq('clinic_id', clinicId)
           .eq('patient_number', patientNumber)
 
