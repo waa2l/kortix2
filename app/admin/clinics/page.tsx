@@ -7,21 +7,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ArrowLeft, Plus, Edit2, Trash2, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { supabase } from '@/lib/supabase' // استيراد عميل Supabase
+import { supabase } from '@/lib/supabase'
 
-// تعريف واجهة البيانات بناءً على جدول قاعدة البيانات
 interface Clinic {
   id: string
   name: string
-  clinic_number: number // انتبه: في قاعدة البيانات الاسم clinic_number
-  screen_ids: number[]  // انتبه: في قاعدة البيانات الاسم screen_ids
+  clinic_number: number
+  screen_ids: number[]
   password: string
   current_number: number
 }
 
 export default function ClinicsPage() {
-  const [clinics, setClinics] = useState<Clinic[]>([]) // مصفوفة فارغة في البداية
-  const [loadingData, setLoadingData] = useState(true) // حالة تحميل البيانات
+  const [clinics, setClinics] = useState<Clinic[]>([])
+  const [loadingData, setLoadingData] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -33,7 +32,7 @@ export default function ClinicsPage() {
     password: '',
   })
 
-  // 1. جلب البيانات من Supabase عند فتح الصفحة
+  // 1. جلب البيانات من Supabase
   const fetchClinics = async () => {
     try {
       setLoadingData(true)
@@ -61,7 +60,7 @@ export default function ClinicsPage() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  // 2. إضافة أو تعديل عيادة في Supabase
+  // 2. إضافة أو تعديل عيادة
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -80,25 +79,20 @@ export default function ClinicsPage() {
         clinic_number: clinicNumber,
         screen_ids: screensArray,
         password: formData.password,
-        // center_id: '...' // قد تحتاج لإضافة معرف المركز إذا كان النظام يدعم مراكز متعددة، أو اتركه إذا كان Supabase يضع قيمة افتراضية أو إذا عدلت الجدول
       }
 
       if (editingId) {
-        // تحديث
-        const { error } = await supabase
-          .from('clinics')
-          .update(clinicData as any) // استخدمنا as any لتجاوز مشاكل TypeScript
+        // تحديث - تجاوز التحقق من الأنواع
+        const { error } = await (supabase.from('clinics') as any)
+          .update(clinicData)
           .eq('id', editingId)
 
         if (error) throw error
         toast.success('تم تحديث العيادة بنجاح')
       } else {
-        // إضافة جديد
-        // ملاحظة: نحتاج لـ center_id. سأفترض أننا نجلب أول مركز أو ننشئه يدوياً.
-        // للتبسيط الآن، سنرسل البيانات وسيعتمد على قاعدة البيانات
-        // يجب التأكد من وجود مركز واحد على الأقل في جدول centers
+        // إضافة جديد - تجاوز التحقق من الأنواع
         
-        // جلب معرف المركز الأول (حل مؤقت)
+        // جلب معرف المركز الأول
         const { data: centers } = await supabase.from('centers').select('id').limit(1)
         const centerId = centers?.[0]?.id
 
@@ -107,15 +101,13 @@ export default function ClinicsPage() {
             return
         }
 
-        const { error } = await supabase
-          .from('clinics')
-          .insert({ ...clinicData, center_id: centerId } as any)
+        const { error } = await (supabase.from('clinics') as any)
+          .insert({ ...clinicData, center_id: centerId })
 
         if (error) throw error
         toast.success('تم إضافة العيادة بنجاح')
       }
 
-      // إعادة تحميل البيانات وتصفية النموذج
       await fetchClinics()
       setFormData({ name: '', number: '', screens: '', password: '' })
       setShowForm(false)
@@ -140,7 +132,7 @@ export default function ClinicsPage() {
     setShowForm(true)
   }
 
-  // 3. حذف عيادة من Supabase
+  // 3. حذف عيادة
   const handleDelete = async (id: string) => {
     if (confirm('هل تريد حذف هذه العيادة؟')) {
       try {
