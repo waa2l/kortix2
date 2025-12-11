@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,16 +8,42 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Save, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { supabase } from '@/lib/supabase'
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(false)
+  const [centerId, setCenterId] = useState<string | null>(null)
+  
   const [settings, setSettings] = useState({
-    centerName: 'المركز الطبي المتقدم',
-    newsTicker: 'أهلا وسهلا بكم في المركز الطبي • نرجو الانتظار بهدوء • شكراً لتعاونكم معنا',
+    centerName: '',
+    newsTicker: '',
     tickerSpeed: 30,
     alertDuration: 5,
     speechSpeed: 1.0,
   })
+
+  // Fetch Settings (First Center)
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const { data, error } = await supabase.from('centers').select('*').limit(1).single()
+        
+        if (data) {
+          setCenterId(data.id)
+          setSettings({
+            centerName: data.name,
+            newsTicker: data.news_ticker || '',
+            tickerSpeed: data.ticker_speed || 30,
+            alertDuration: data.alert_duration || 5,
+            speechSpeed: data.speech_speed || 1.0
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error)
+      }
+    }
+    fetchSettings()
+  }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -32,11 +58,30 @@ export default function SettingsPage() {
     setLoading(true)
 
     try {
-      // Mock save
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const dataToUpdate = {
+        name: settings.centerName,
+        news_ticker: settings.newsTicker,
+        ticker_speed: settings.tickerSpeed,
+        alert_duration: settings.alertDuration,
+        speech_speed: settings.speechSpeed
+      }
+
+      let error;
+      
+      if (centerId) {
+        // Update existing
+        const result = await (supabase.from('centers') as any).update(dataToUpdate).eq('id', centerId)
+        error = result.error
+      } else {
+        // Insert new (First time setup)
+        const result = await (supabase.from('centers') as any).insert(dataToUpdate)
+        error = result.error
+      }
+
+      if (error) throw error
       toast.success('تم حفظ الإعدادات بنجاح')
     } catch (err) {
-      toast.error('حدث خطأ ما')
+      toast.error('حدث خطأ أثناء الحفظ')
     } finally {
       setLoading(false)
     }
@@ -45,7 +90,6 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-medical-50 p-6">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-medical-900">الإعدادات العامة</h1>
           <Link href="/admin/dashboard">
@@ -56,113 +100,44 @@ export default function SettingsPage() {
           </Link>
         </div>
 
-        {/* Settings Form */}
         <form onSubmit={handleSave} className="space-y-6">
-          {/* Center Name */}
           <Card>
-            <CardHeader>
-              <CardTitle>اسم المركز</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>اسم المركز</CardTitle></CardHeader>
             <CardContent>
-              <Input
-                type="text"
-                name="centerName"
-                value={settings.centerName}
-                onChange={handleChange}
-                disabled={loading}
-              />
+              <Input type="text" name="centerName" value={settings.centerName} onChange={handleChange} disabled={loading} placeholder="اسم المركز الطبي" />
             </CardContent>
           </Card>
 
-          {/* News Ticker */}
           <Card>
-            <CardHeader>
-              <CardTitle>الشريط الإخباري</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>الشريط الإخباري</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">محتوى الشريط</label>
-                <Textarea
-                  name="newsTicker"
-                  value={settings.newsTicker}
-                  onChange={handleChange}
-                  disabled={loading}
-                  rows={4}
-                />
+                <Textarea name="newsTicker" value={settings.newsTicker} onChange={handleChange} disabled={loading} rows={4} />
               </div>
-
               <div className="space-y-2">
                 <label className="text-sm font-medium">سرعة الشريط (ثانية)</label>
-                <Input
-                  type="number"
-                  name="tickerSpeed"
-                  value={settings.tickerSpeed}
-                  onChange={handleChange}
-                  disabled={loading}
-                  min="5"
-                  max="60"
-                />
+                <Input type="number" name="tickerSpeed" value={settings.tickerSpeed} onChange={handleChange} disabled={loading} min="5" max="60" />
               </div>
             </CardContent>
           </Card>
 
-          {/* Alert Settings */}
           <Card>
-            <CardHeader>
-              <CardTitle>إعدادات التنبيهات</CardTitle>
-            </CardHeader>
-            <CardContent>
+            <CardHeader><CardTitle>إعدادات التنبيهات ونطق الصوت</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">مدة عرض التنبيه (ثانية)</label>
-                <Input
-                  type="number"
-                  name="alertDuration"
-                  value={settings.alertDuration}
-                  onChange={handleChange}
-                  disabled={loading}
-                  min="1"
-                  max="30"
-                />
+                <Input type="number" name="alertDuration" value={settings.alertDuration} onChange={handleChange} disabled={loading} min="1" max="30" />
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Speech Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle>إعدادات النطق</CardTitle>
-            </CardHeader>
-            <CardContent>
               <div className="space-y-2">
                 <label className="text-sm font-medium">سرعة النطق</label>
-                <Input
-                  type="number"
-                  name="speechSpeed"
-                  value={settings.speechSpeed}
-                  onChange={handleChange}
-                  disabled={loading}
-                  min="0.5"
-                  max="2"
-                  step="0.1"
-                />
-                <p className="text-xs text-medical-600">0.5 = بطيء، 1.0 = عادي، 2.0 = سريع</p>
+                <Input type="number" name="speechSpeed" value={settings.speechSpeed} onChange={handleChange} disabled={loading} min="0.5" max="2" step="0.1" />
               </div>
             </CardContent>
           </Card>
 
-          {/* Save Button */}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                جاري الحفظ...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                حفظ الإعدادات
-              </>
-            )}
+            {loading ? <Loader2 className="animate-spin" /> : <><Save className="mr-2 h-4 w-4" /> حفظ الإعدادات</>}
           </Button>
         </form>
       </div>
