@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function ConsultationsPage() {
