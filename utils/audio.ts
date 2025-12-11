@@ -134,8 +134,7 @@ export function getAudioQueue(): AudioQueue {
  */
 export async function playPatientCallAnnouncement(
   patientNumber: number,
-  clinicId: number,
-  clinicName: string
+  clinicId: number
 ): Promise<void> {
   const queue = getAudioQueue()
 
