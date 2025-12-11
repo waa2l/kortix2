@@ -13,7 +13,8 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react'
-import { toArabicNumbers, formatArabicDateTime, formatArabicTime } from '@/utils/arabic'
+// تم حذف formatArabicDateTime من الاستيراد
+import { toArabicNumbers, formatArabicTime } from '@/utils/arabic'
 import { QRCodeCanvas } from 'qrcode.react'
 import toast from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
