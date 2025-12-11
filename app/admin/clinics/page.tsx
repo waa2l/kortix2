@@ -1,30 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ArrowLeft, Plus, Edit2, Trash2, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { supabase } from '@/lib/supabase' // استيراد عميل Supabase
 
+// تعريف واجهة البيانات بناءً على جدول قاعدة البيانات
 interface Clinic {
   id: string
   name: string
-  number: number
-  screens: number[]
+  clinic_number: number // انتبه: في قاعدة البيانات الاسم clinic_number
+  screen_ids: number[]  // انتبه: في قاعدة البيانات الاسم screen_ids
   password: string
+  current_number: number
 }
 
 export default function ClinicsPage() {
-  const [clinics, setClinics] = useState<Clinic[]>([
-    { id: '1', name: 'طب الأسرة', number: 1, screens: [1, 2], password: '1234' },
-    { id: '2', name: 'الأسنان', number: 2, screens: [2, 3], password: '2345' },
-    { id: '3', name: 'العيون', number: 3, screens: [3, 4], password: '3456' },
-  ])
+  const [clinics, setClinics] = useState<Clinic[]>([]) // مصفوفة فارغة في البداية
+  const [loadingData, setLoadingData] = useState(true) // حالة تحميل البيانات
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  
   const [formData, setFormData] = useState({
     name: '',
     number: '',
@@ -32,11 +33,35 @@ export default function ClinicsPage() {
     password: '',
   })
 
+  // 1. جلب البيانات من Supabase عند فتح الصفحة
+  const fetchClinics = async () => {
+    try {
+      setLoadingData(true)
+      const { data, error } = await supabase
+        .from('clinics')
+        .select('*')
+        .order('clinic_number', { ascending: true })
+
+      if (error) throw error
+      if (data) setClinics(data)
+    } catch (error) {
+      console.error('Error fetching clinics:', error)
+      toast.error('فشل في جلب بيانات العيادات')
+    } finally {
+      setLoadingData(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchClinics()
+  }, [])
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
+  // 2. إضافة أو تعديل عيادة في Supabase
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -47,40 +72,58 @@ export default function ClinicsPage() {
         return
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      const screensArray = formData.screens.split(',').map((s) => parseInt(s.trim())).filter(n => !isNaN(n))
+      const clinicNumber = parseInt(formData.number)
+
+      const clinicData = {
+        name: formData.name,
+        clinic_number: clinicNumber,
+        screen_ids: screensArray,
+        password: formData.password,
+        // center_id: '...' // قد تحتاج لإضافة معرف المركز إذا كان النظام يدعم مراكز متعددة، أو اتركه إذا كان Supabase يضع قيمة افتراضية أو إذا عدلت الجدول
+      }
 
       if (editingId) {
-        setClinics((prev) =>
-          prev.map((clinic) =>
-            clinic.id === editingId
-              ? {
-                  ...clinic,
-                  name: formData.name,
-                  number: parseInt(formData.number),
-                  screens: formData.screens.split(',').map((s) => parseInt(s.trim())),
-                  password: formData.password,
-                }
-              : clinic
-          )
-        )
+        // تحديث
+        const { error } = await supabase
+          .from('clinics')
+          .update(clinicData as any) // استخدمنا as any لتجاوز مشاكل TypeScript
+          .eq('id', editingId)
+
+        if (error) throw error
         toast.success('تم تحديث العيادة بنجاح')
-        setEditingId(null)
       } else {
-        const newClinic: Clinic = {
-          id: Date.now().toString(),
-          name: formData.name,
-          number: parseInt(formData.number),
-          screens: formData.screens.split(',').map((s) => parseInt(s.trim())),
-          password: formData.password,
+        // إضافة جديد
+        // ملاحظة: نحتاج لـ center_id. سأفترض أننا نجلب أول مركز أو ننشئه يدوياً.
+        // للتبسيط الآن، سنرسل البيانات وسيعتمد على قاعدة البيانات
+        // يجب التأكد من وجود مركز واحد على الأقل في جدول centers
+        
+        // جلب معرف المركز الأول (حل مؤقت)
+        const { data: centers } = await supabase.from('centers').select('id').limit(1)
+        const centerId = centers?.[0]?.id
+
+        if (!centerId) {
+            toast.error('لا يوجد مركز معرف في النظام. يرجى إنشاء مركز أولاً في قاعدة البيانات.')
+            return
         }
-        setClinics((prev) => [...prev, newClinic])
+
+        const { error } = await supabase
+          .from('clinics')
+          .insert({ ...clinicData, center_id: centerId } as any)
+
+        if (error) throw error
         toast.success('تم إضافة العيادة بنجاح')
       }
 
+      // إعادة تحميل البيانات وتصفية النموذج
+      await fetchClinics()
       setFormData({ name: '', number: '', screens: '', password: '' })
       setShowForm(false)
-    } catch (err) {
-      toast.error('حدث خطأ ما')
+      setEditingId(null)
+
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || 'حدث خطأ ما')
     } finally {
       setLoading(false)
     }
@@ -89,18 +132,30 @@ export default function ClinicsPage() {
   const handleEdit = (clinic: Clinic) => {
     setFormData({
       name: clinic.name,
-      number: clinic.number.toString(),
-      screens: clinic.screens.join(', '),
+      number: clinic.clinic_number.toString(),
+      screens: clinic.screen_ids.join(', '),
       password: clinic.password,
     })
     setEditingId(clinic.id)
     setShowForm(true)
   }
 
+  // 3. حذف عيادة من Supabase
   const handleDelete = async (id: string) => {
     if (confirm('هل تريد حذف هذه العيادة؟')) {
-      setClinics((prev) => prev.filter((clinic) => clinic.id !== id))
-      toast.success('تم حذف العيادة بنجاح')
+      try {
+        const { error } = await supabase
+          .from('clinics')
+          .delete()
+          .eq('id', id)
+
+        if (error) throw error
+        
+        setClinics((prev) => prev.filter((clinic) => clinic.id !== id))
+        toast.success('تم حذف العيادة بنجاح')
+      } catch (error) {
+        toast.error('فشل حذف العيادة')
+      }
     }
   }
 
@@ -214,46 +269,59 @@ export default function ClinicsPage() {
           </Card>
         )}
 
-        {/* Clinics List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {clinics.map((clinic) => (
-            <Card key={clinic.id}>
-              <CardHeader>
-                <CardTitle>{clinic.name}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm text-medical-600">رقم العيادة</p>
-                  <p className="font-bold text-medical-900">{clinic.number}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-medical-600">الشاشات</p>
-                  <p className="font-bold text-medical-900">{clinic.screens.join(', ')}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleEdit(clinic)}
-                    className="flex-1 gap-2"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                    تعديل
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDelete(clinic.id)}
-                    className="flex-1 gap-2 text-danger-600 hover:text-danger-700"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    حذف
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {/* Loading State */}
+        {loadingData ? (
+            <div className="flex justify-center p-8">
+                <Loader2 className="w-8 h-8 animate-spin text-medical-600" />
+            </div>
+        ) : (
+            /* Clinics List */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {clinics.length === 0 ? (
+                <p className="text-center col-span-3 text-gray-500">لا توجد عيادات مضافة حالياً</p>
+            ) : (
+                clinics.map((clinic) => (
+                    <Card key={clinic.id}>
+                    <CardHeader>
+                        <CardTitle>{clinic.name}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div>
+                        <p className="text-sm text-medical-600">رقم العيادة</p>
+                        <p className="font-bold text-medical-900">{clinic.clinic_number}</p>
+                        </div>
+                        <div>
+                        <p className="text-sm text-medical-600">الشاشات</p>
+                        <p className="font-bold text-medical-900">
+                            {clinic.screen_ids && clinic.screen_ids.length > 0 ? clinic.screen_ids.join(', ') : 'لا يوجد'}
+                        </p>
+                        </div>
+                        <div className="flex gap-2">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEdit(clinic)}
+                            className="flex-1 gap-2"
+                        >
+                            <Edit2 className="w-4 h-4" />
+                            تعديل
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDelete(clinic.id)}
+                            className="flex-1 gap-2 text-danger-600 hover:text-danger-700"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            حذف
+                        </Button>
+                        </div>
+                    </CardContent>
+                    </Card>
+                ))
+            )}
+            </div>
+        )}
       </div>
     </div>
   )
