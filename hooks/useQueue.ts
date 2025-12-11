@@ -99,7 +99,7 @@ export function useQueue(clinicId: string) {
       // Update clinic current number
       const { error: updateErr } = await supabase
         .from('clinics')
-        .update({ current_number: nextNumber })
+        .update({ current_number: nextNumber } as any)
         .eq('id', clinicId)
 
       if (updateErr) throw updateErr
@@ -111,7 +111,7 @@ export function useQueue(clinicId: string) {
           clinic_id: clinicId,
           patient_number: nextNumber,
           status: 'called',
-        })
+        } as any)
 
       if (callErr) throw callErr
     } catch (err) {
@@ -128,7 +128,7 @@ export function useQueue(clinicId: string) {
 
       const { error: updateErr } = await supabase
         .from('clinics')
-        .update({ current_number: previousNumber })
+        .update({ current_number: previousNumber } as any)
         .eq('id', clinicId)
 
       if (updateErr) throw updateErr
@@ -143,7 +143,7 @@ export function useQueue(clinicId: string) {
       try {
         const { error: updateErr } = await supabase
           .from('clinics')
-          .update({ current_number: patientNumber })
+          .update({ current_number: patientNumber } as any)
           .eq('id', clinicId)
 
         if (updateErr) throw updateErr
@@ -154,7 +154,7 @@ export function useQueue(clinicId: string) {
             clinic_id: clinicId,
             patient_number: patientNumber,
             status: 'called',
-          })
+          } as any)
 
         if (callErr) throw callErr
       } catch (err) {
@@ -169,7 +169,7 @@ export function useQueue(clinicId: string) {
     try {
       const { error: updateErr } = await supabase
         .from('clinics')
-        .update({ current_number: 0 })
+        .update({ current_number: 0 } as any)
         .eq('id', clinicId)
 
       if (updateErr) throw updateErr
@@ -185,7 +185,7 @@ export function useQueue(clinicId: string) {
     try {
       const { error: updateErr } = await supabase
         .from('clinics')
-        .update({ is_active: !clinic.is_active })
+        .update({ is_active: !clinic.is_active } as any)
         .eq('id', clinicId)
 
       if (updateErr) throw updateErr
@@ -205,7 +205,7 @@ export function useQueue(clinicId: string) {
             patient_number: patientNumber,
             is_emergency: true,
             status: 'called',
-          })
+          } as any)
 
         if (callErr) throw callErr
       } catch (err) {
@@ -224,7 +224,7 @@ export function useQueue(clinicId: string) {
           .update({
             transferred_to_clinic_id: toClinicId,
             status: 'transferred',
-          })
+          } as any)
           .eq('clinic_id', clinicId)
           .eq('patient_number', patientNumber)
 
