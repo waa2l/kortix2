@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,6 +8,12 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { ArrowLeft, Loader2, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { supabase } from '@/lib/supabase'
+
+interface Clinic {
+  id: string
+  name: string
+}
 
 export default function AppointmentsPage() {
   const [formData, setFormData] = useState({
@@ -20,16 +26,18 @@ export default function AppointmentsPage() {
     shift: 'morning',
     reason: '',
   })
+  const [clinics, setClinics] = useState<Clinic[]>([])
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  const clinics = [
-    { id: '1', name: 'طب الأسرة' },
-    { id: '2', name: 'الأسنان' },
-    { id: '3', name: 'العيون' },
-    { id: '4', name: 'الجلدية' },
-    { id: '5', name: 'الأطفال' },
-  ]
+  // Fetch Clinics
+  useEffect(() => {
+    const fetchClinics = async () => {
+      const { data } = await supabase.from('clinics').select('id, name')
+      if (data) setClinics(data)
+    }
+    fetchClinics()
+  }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -41,19 +49,40 @@ export default function AppointmentsPage() {
     setLoading(true)
 
     try {
-      // Validation
       if (!formData.patientName || !formData.nationalId || !formData.phone || !formData.clinic || !formData.date || !formData.time || !formData.reason) {
         toast.error('يرجى ملء جميع الحقول المطلوبة')
+        setLoading(false)
         return
       }
 
-      // Mock submission
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Get Center ID
+      const { data: centers } = await supabase.from('centers').select('id').limit(1)
+      const centerId = (centers as any)?.[0]?.id
+
+      if (!centerId) {
+        toast.error('خطأ في النظام: لا يوجد مركز معرف')
+        setLoading(false)
+        return
+      }
+
+      const { error } = await (supabase.from('appointments') as any).insert({
+        center_id: centerId,
+        clinic_id: formData.clinic,
+        patient_name: formData.patientName,
+        national_id: formData.nationalId,
+        phone: formData.phone,
+        appointment_date: formData.date,
+        appointment_time: formData.time,
+        visit_reason: formData.reason,
+        shift: formData.shift,
+        status: 'pending'
+      })
+
+      if (error) throw error
 
       toast.success('تم حجز الموعد بنجاح')
       setSubmitted(true)
 
-      // Reset form after 3 seconds
       setTimeout(() => {
         setFormData({
           patientName: '',
@@ -69,6 +98,7 @@ export default function AppointmentsPage() {
       }, 3000)
     } catch (err) {
       toast.error('حدث خطأ ما')
+      console.error(err)
     } finally {
       setLoading(false)
     }
