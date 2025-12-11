@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,25 +19,58 @@ import {
 } from 'lucide-react'
 import { toArabicNumbers } from '@/utils/arabic'
 import toast from 'react-hot-toast'
+import { supabase } from '@/lib/supabase'
+
+interface Clinic {
+  id: string
+  name: string
+  password: string
+  current_number: number
+  clinic_number: number
+  is_active: boolean
+}
 
 export default function ControlPage() {
   const router = useRouter()
   const [step, setStep] = useState<'clinic-select' | 'control'>('clinic-select')
-  const [selectedClinic, setSelectedClinic] = useState('')
+  const [selectedClinicId, setSelectedClinicId] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [currentNumber, setCurrentNumber] = useState(0)
+  
+  // Data States
+  const [clinicsList, setClinicsList] = useState<Clinic[]>([])
+  const [activeClinic, setActiveClinic] = useState<Clinic | null>(null)
   const [specificNumber, setSpecificNumber] = useState('')
 
-  // Mock clinics
-  const clinics = [
-    { id: '1', name: 'طب الأسرة', password: '1234' },
-    { id: '2', name: 'الأسنان', password: '2345' },
-    { id: '3', name: 'العيون', password: '3456' },
-    { id: '4', name: 'الجلدية', password: '4567' },
-    { id: '5', name: 'الأطفال', password: '5678' },
-  ]
+  // 1. Fetch Clinics for Dropdown
+  useEffect(() => {
+    const fetchClinics = async () => {
+      const { data } = await supabase.from('clinics').select('*').order('clinic_number', { ascending: true })
+      if (data) setClinicsList(data)
+    }
+    fetchClinics()
+  }, [])
+
+  // 2. Realtime Subscription for Active Clinic
+  useEffect(() => {
+    if (!activeClinic?.id) return
+
+    const channel = supabase
+      .channel(`control_clinic_${activeClinic.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'clinics', filter: `id=eq.${activeClinic.id}` },
+        (payload) => {
+          setActiveClinic(payload.new as Clinic)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [activeClinic?.id])
 
   const handleClinicSelect = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,8 +78,8 @@ export default function ControlPage() {
     setLoading(true)
 
     try {
-      // Mock authentication
-      const clinic = clinics.find((c) => c.id === selectedClinic)
+      const clinic = clinicsList.find((c) => c.id === selectedClinicId)
+      
       if (!clinic) {
         setError('العيادة غير موجودة')
         return
@@ -57,6 +90,7 @@ export default function ControlPage() {
         return
       }
 
+      setActiveClinic(clinic)
       setStep('control')
       toast.success('تم تسجيل الدخول بنجاح')
     } catch (err) {
@@ -66,46 +100,106 @@ export default function ControlPage() {
     }
   }
 
+  const updateQueue = async (newNumber: number, status: string = 'called', isEmergency: boolean = false) => {
+    if (!activeClinic) return
+
+    try {
+      // 1. Update Clinic Current Number
+      const { error: updateErr } = await (supabase.from('clinics') as any)
+        .update({ current_number: newNumber })
+        .eq('id', activeClinic.id)
+
+      if (updateErr) throw updateErr
+
+      // 2. Insert Call Record
+      const { error: insertErr } = await (supabase.from('queue_calls') as any).insert({
+        clinic_id: activeClinic.id,
+        patient_number: newNumber,
+        status: status,
+        is_emergency: isEmergency,
+        called_at: new Date().toISOString()
+      })
+
+      if (insertErr) throw insertErr
+
+      // Optimistic Update is handled by Realtime subscription, but we can set it locally too
+      setActiveClinic({ ...activeClinic, current_number: newNumber })
+
+    } catch (error: any) {
+      toast.error(error.message || 'فشل تحديث الطابور')
+    }
+  }
+
   const handleNextPatient = () => {
-    const newNumber = currentNumber + 1
-    setCurrentNumber(newNumber)
+    if (!activeClinic) return
+    const newNumber = (activeClinic.current_number || 0) + 1
+    updateQueue(newNumber)
     toast.success(`تم استدعاء العميل رقم ${toArabicNumbers(newNumber)}`)
-    // TODO: Play audio announcement
   }
 
   const handlePreviousPatient = () => {
-    if (currentNumber > 0) {
-      const newNumber = currentNumber - 1
-      setCurrentNumber(newNumber)
-      toast.success(`تم استدعاء العميل رقم ${toArabicNumbers(newNumber)}`)
-    }
+    if (!activeClinic || activeClinic.current_number <= 0) return
+    const newNumber = activeClinic.current_number - 1
+    // We update the number but maybe don't insert a new "call" record, or we do. Let's insert for history.
+    updateQueue(newNumber)
+    toast.success(`تم الرجوع للعميل رقم ${toArabicNumbers(newNumber)}`)
   }
 
   const handleCallSpecific = () => {
     if (specificNumber) {
       const num = parseInt(specificNumber)
-      setCurrentNumber(num)
+      updateQueue(num)
       toast.success(`تم استدعاء العميل رقم ${toArabicNumbers(num)}`)
       setSpecificNumber('')
     }
   }
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (confirm('هل تريد تصفير العيادة؟')) {
-      setCurrentNumber(0)
-      toast.success('تم تصفير العيادة')
+      if (!activeClinic) return
+      
+      try {
+        const { error } = await (supabase.from('clinics') as any)
+          .update({ current_number: 0 })
+          .eq('id', activeClinic.id)
+        
+        if (error) throw error
+        toast.success('تم تصفير العيادة')
+      } catch (e) {
+        toast.error('فشل التصفير')
+      }
     }
   }
 
   const handleEmergency = () => {
-    toast.error('تنبيه طوارئ: تم إرسال نداء طوارئ')
+    // Usually emergency doesn't change the current number sequence but alerts screens
+    if (!activeClinic) return
+    // We can use a special number or just flag the current/next one.
+    // Let's assume emergency just alerts for the *current* number or a specific logic.
+    // For now, we will just insert an emergency record without changing the number
+    
+    const sendEmergency = async () => {
+        try {
+            const { error } = await (supabase.from('queue_calls') as any).insert({
+                clinic_id: activeClinic.id,
+                patient_number: activeClinic.current_number, // Alert for current patient? or generic?
+                is_emergency: true,
+                status: 'called'
+            })
+            if (error) throw error
+            toast.success('تم إرسال نداء طوارئ')
+        } catch (e) {
+            toast.error('فشل إرسال الطوارئ')
+        }
+    }
+    sendEmergency()
   }
 
   const handleLogout = () => {
     setStep('clinic-select')
-    setSelectedClinic('')
+    setSelectedClinicId('')
     setPassword('')
-    setCurrentNumber(0)
+    setActiveClinic(null)
     toast.success('تم تسجيل الخروج')
   }
 
@@ -129,12 +223,12 @@ export default function ControlPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">اختر العيادة</label>
                   <Select
-                    value={selectedClinic}
-                    onChange={(e) => setSelectedClinic(e.target.value)}
+                    value={selectedClinicId}
+                    onChange={(e) => setSelectedClinicId(e.target.value)}
                     disabled={loading}
                   >
                     <option value="">-- اختر العيادة --</option>
-                    {clinics.map((clinic) => (
+                    {clinicsList.map((clinic) => (
                       <option key={clinic.id} value={clinic.id}>
                         {clinic.name}
                       </option>
@@ -180,16 +274,14 @@ export default function ControlPage() {
     )
   }
 
-  const clinic = clinics.find((c) => c.id === selectedClinic)
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-medical-50 to-medical-100 p-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-medical-900">{clinic?.name}</h1>
-            <p className="text-medical-600">الرقم الحالي: {toArabicNumbers(currentNumber)}</p>
+            <h1 className="text-3xl font-bold text-medical-900">{activeClinic?.name}</h1>
+            <p className="text-medical-600">الرقم الحالي: {toArabicNumbers(activeClinic?.current_number || 0)}</p>
           </div>
           <Button
             variant="outline"
@@ -206,7 +298,7 @@ export default function ControlPage() {
           <CardContent className="pt-8">
             <div className="text-center">
               <p className="text-lg text-primary-100 mb-2">الرقم الحالي</p>
-              <p className="text-7xl font-bold">{toArabicNumbers(currentNumber)}</p>
+              <p className="text-7xl font-bold">{toArabicNumbers(activeClinic?.current_number || 0)}</p>
             </div>
           </CardContent>
         </Card>
