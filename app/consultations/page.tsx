@@ -1,415 +1,304 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Loader2, CheckCircle } from 'lucide-react'
+import {
+  ChevronUp,
+  ChevronDown,
+  RotateCcw,
+  AlertTriangle,
+  Phone,
+  ArrowRight,
+  LogOut,
+  Loader2,
+  AlertCircle,
+} from 'lucide-react'
+import { toArabicNumbers } from '@/utils/arabic'
 import toast from 'react-hot-toast'
 
-export default function ConsultationsPage() {
-  const [step, setStep] = useState<'register' | 'consult'>('register')
-  const [formData, setFormData] = useState({
-    fullName: '',
-    nationalId: '',
-    phone: '',
-    gender: '',
-    familyMembers: '',
-    chronicDiseases: [] as string[],
-    isPregnant: false,
-    isBreastfeeding: false,
-    previousSurgeries: '',
-    drugAllergies: '',
-    currentMedications: '',
-  })
+export default function ControlPage() {
+  const router = useRouter()
+  const [step, setStep] = useState<'clinic-select' | 'control'>('clinic-select')
+  const [selectedClinic, setSelectedClinic] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState('')
+  const [currentNumber, setCurrentNumber] = useState(0)
+  const [specificNumber, setSpecificNumber] = useState('')
 
-  const chronicDiseaseOptions = [
-    'السكري',
-    'ارتفاع ضغط الدم',
-    'الأورام',
-    'أمراض الكبد',
-    'أمراض الكلى',
-    'أخرى',
+  // Mock clinics
+  const clinics = [
+    { id: '1', name: 'طب الأسرة', password: '1234' },
+    { id: '2', name: 'الأسنان', password: '2345' },
+    { id: '3', name: 'العيون', password: '3456' },
+    { id: '4', name: 'الجلدية', password: '4567' },
+    { id: '5', name: 'الأطفال', password: '5678' },
   ]
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target
-    if (type === 'checkbox') {
-      const checked = (e.target as HTMLInputElement).checked
-      setFormData((prev) => ({
-        ...prev,
-        [name]: checked,
-      }))
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: value,
-      }))
-    }
-  }
-
-  const handleDiseaseChange = (disease: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      chronicDiseases: prev.chronicDiseases.includes(disease)
-        ? prev.chronicDiseases.filter((d) => d !== disease)
-        : [...prev.chronicDiseases, disease],
-    }))
-  }
-
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleClinicSelect = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError('')
     setLoading(true)
 
     try {
-      if (!formData.fullName || !formData.nationalId || !formData.phone || !formData.gender) {
-        toast.error('يرجى ملء جميع الحقول المطلوبة')
+      // Mock authentication
+      const clinic = clinics.find((c) => c.id === selectedClinic)
+      if (!clinic) {
+        setError('العيادة غير موجودة')
         return
       }
 
-      // Mock submission
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      if (password !== clinic.password) {
+        setError('كلمة المرور غير صحيحة')
+        return
+      }
 
-      toast.success('تم التسجيل بنجاح')
-      setStep('consult')
+      setStep('control')
+      toast.success('تم تسجيل الدخول بنجاح')
     } catch (err) {
-      toast.error('حدث خطأ ما')
+      setError('حدث خطأ ما')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleConsultation = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
+  const handleNextPatient = () => {
+    const newNumber = currentNumber + 1
+    setCurrentNumber(newNumber)
+    toast.success(`تم استدعاء العميل رقم ${toArabicNumbers(newNumber)}`)
+    // TODO: Play audio announcement
+  }
 
-    try {
-      // Mock submission
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      toast.success('تم إرسال الاستشارة بنجاح')
-      setSubmitted(true)
-
-      setTimeout(() => {
-        setSubmitted(false)
-      }, 3000)
-    } catch (err) {
-      toast.error('حدث خطأ ما')
-    } finally {
-      setLoading(false)
+  const handlePreviousPatient = () => {
+    if (currentNumber > 0) {
+      const newNumber = currentNumber - 1
+      setCurrentNumber(newNumber)
+      toast.success(`تم استدعاء العميل رقم ${toArabicNumbers(newNumber)}`)
     }
   }
 
-  if (submitted) {
+  const handleCallSpecific = () => {
+    if (specificNumber) {
+      const num = parseInt(specificNumber)
+      setCurrentNumber(num)
+      toast.success(`تم استدعاء العميل رقم ${toArabicNumbers(num)}`)
+      setSpecificNumber('')
+    }
+  }
+
+  const handleReset = () => {
+    if (confirm('هل تريد تصفير العيادة؟')) {
+      setCurrentNumber(0)
+      toast.success('تم تصفير العيادة')
+    }
+  }
+
+  const handleEmergency = () => {
+    toast.error('تنبيه طوارئ: تم إرسال نداء طوارئ')
+  }
+
+  const handleLogout = () => {
+    setStep('clinic-select')
+    setSelectedClinic('')
+    setPassword('')
+    setCurrentNumber(0)
+    toast.success('تم تسجيل الخروج')
+  }
+
+  if (step === 'clinic-select') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-medical-50 to-medical-100 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full border-2 border-success-500">
-          <CardContent className="pt-8 text-center">
-            <CheckCircle className="w-16 h-16 text-success-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-medical-900 mb-2">تم الإرسال بنجاح</h2>
-            <p className="text-medical-600 mb-6">سيتم الرد على استشارتك قريباً من قبل الطبيب المختص</p>
-            <Link href="/">
-              <Button className="w-full">العودة للصفحة الرئيسية</Button>
-            </Link>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-blue-50 to-primary-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <Card className="shadow-xl">
+            <CardHeader>
+              <CardTitle>لوحة التحكم بالعيادة</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleClinicSelect} className="space-y-4">
+                {error && (
+                  <div className="flex items-center gap-2 p-3 bg-danger-50 border border-danger-200 rounded-lg text-danger-700 text-sm">
+                    <AlertCircle className="w-4 h-4" />
+                    {error}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">اختر العيادة</label>
+                  <Select
+                    value={selectedClinic}
+                    onChange={(e) => setSelectedClinic(e.target.value)}
+                    disabled={loading}
+                  >
+                    <option value="">-- اختر العيادة --</option>
+                    {clinics.map((clinic) => (
+                      <option key={clinic.id} value={clinic.id}>
+                        {clinic.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">كلمة المرور</label>
+                  <Input
+                    type="password"
+                    placeholder="أدخل كلمة المرور"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
+
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      جاري التحميل...
+                    </>
+                  ) : (
+                    'دخول'
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => router.push('/')}
+                >
+                  العودة
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
 
+  const clinic = clinics.find((c) => c.id === selectedClinic)
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-medical-50 to-medical-100 p-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-medical-50 to-medical-100 p-6">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-medical-900">الاستشارات الطبية</h1>
-          <Link href="/">
-            <Button variant="outline" className="gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              العودة
-            </Button>
-          </Link>
+          <div>
+            <h1 className="text-3xl font-bold text-medical-900">{clinic?.name}</h1>
+            <p className="text-medical-600">الرقم الحالي: {toArabicNumbers(currentNumber)}</p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={handleLogout}
+            className="gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            خروج
+          </Button>
         </div>
 
-        {step === 'register' ? (
-          // Registration Form
-          <Card>
-            <CardHeader>
-              <CardTitle>التسجيل الأول</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleRegister} className="space-y-4">
-                {/* Full Name */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">الاسم الرباعي (50 حرف)</label>
-                  <Input
-                    type="text"
-                    name="fullName"
-                    placeholder="أدخل الاسم الرباعي"
-                    value={formData.fullName}
-                    onChange={handleChange}
-                    disabled={loading}
-                    maxLength={50}
-                  />
-                </div>
+        {/* Current Number Display */}
+        <Card className="mb-8 bg-gradient-to-br from-primary-500 to-primary-600 text-white border-0">
+          <CardContent className="pt-8">
+            <div className="text-center">
+              <p className="text-lg text-primary-100 mb-2">الرقم الحالي</p>
+              <p className="text-7xl font-bold">{toArabicNumbers(currentNumber)}</p>
+            </div>
+          </CardContent>
+        </Card>
 
-                {/* National ID */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">الرقم القومي (14 رقم)</label>
-                  <Input
-                    type="text"
-                    name="nationalId"
-                    placeholder="14 رقم"
-                    value={formData.nationalId}
-                    onChange={handleChange}
-                    disabled={loading}
-                    maxLength={14}
-                  />
-                </div>
+        {/* Control Buttons */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+          <Button
+            onClick={handleNextPatient}
+            className="h-24 text-lg gap-2 bg-success-500 hover:bg-success-600"
+          >
+            <ChevronUp className="w-6 h-6" />
+            العميل التالي
+          </Button>
 
-                {/* Phone */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">رقم الهاتف (11 رقم)</label>
-                  <Input
-                    type="tel"
-                    name="phone"
-                    placeholder="01xxxxxxxxx"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    disabled={loading}
-                    maxLength={11}
-                  />
-                </div>
+          <Button
+            onClick={handlePreviousPatient}
+            variant="outline"
+            className="h-24 text-lg gap-2"
+          >
+            <ChevronDown className="w-6 h-6" />
+            العميل السابق
+          </Button>
 
-                {/* Gender */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">النوع</label>
-                  <Select
-                    name="gender"
-                    value={formData.gender}
-                    onChange={handleChange}
-                    disabled={loading}
-                  >
-                    <option value="">-- اختر --</option>
-                    <option value="male">ذكر</option>
-                    <option value="female">أنثى</option>
-                    <option value="child">طفل</option>
-                  </Select>
-                </div>
+          <Button
+            onClick={handleReset}
+            variant="outline"
+            className="h-24 text-lg gap-2"
+          >
+            <RotateCcw className="w-6 h-6" />
+            تصفير
+          </Button>
 
-                {/* Family Members */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">عدد أفراد الأسرة (0-10)</label>
-                  <Input
-                    type="number"
-                    name="familyMembers"
-                    placeholder="0"
-                    value={formData.familyMembers}
-                    onChange={handleChange}
-                    disabled={loading}
-                    min="0"
-                    max="10"
-                  />
-                </div>
+          <Button
+            onClick={handleEmergency}
+            className="h-24 text-lg gap-2 bg-danger-500 hover:bg-danger-600 md:col-span-2"
+          >
+            <AlertTriangle className="w-6 h-6" />
+            تنبيه طوارئ
+          </Button>
 
-                {/* Chronic Diseases */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">الأمراض المزمنة</label>
-                  <div className="space-y-2">
-                    {chronicDiseaseOptions.map((disease) => (
-                      <label key={disease} className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.chronicDiseases.includes(disease)}
-                          onChange={() => handleDiseaseChange(disease)}
-                          disabled={loading}
-                          className="w-4 h-4"
-                        />
-                        <span className="text-sm">{disease}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+          <Button
+            variant="outline"
+            className="h-24 text-lg gap-2"
+          >
+            <Phone className="w-6 h-6" />
+            تنبيه طبيب
+          </Button>
+        </div>
 
-                {/* Pregnancy */}
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    name="isPregnant"
-                    checked={formData.isPregnant}
-                    onChange={handleChange}
-                    disabled={loading}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">وجود حمل</span>
-                </label>
+        {/* Specific Patient Call */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>استدعاء عميل معين</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                placeholder="أدخل رقم العميل"
+                value={specificNumber}
+                onChange={(e) => setSpecificNumber(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleCallSpecific}
+                className="gap-2"
+              >
+                <Phone className="w-4 h-4" />
+                استدعاء
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-                {/* Breastfeeding */}
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    name="isBreastfeeding"
-                    checked={formData.isBreastfeeding}
-                    onChange={handleChange}
-                    disabled={loading}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">وجود رضاعة</span>
-                </label>
+        {/* Additional Options */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Button
+            variant="outline"
+            className="h-16 text-base gap-2"
+          >
+            <ArrowRight className="w-5 h-5" />
+            تحويل إلى عيادة أخرى
+          </Button>
 
-                {/* Previous Surgeries */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">عمليات سابقة</label>
-                  <Textarea
-                    name="previousSurgeries"
-                    placeholder="أدخل تفاصيل العمليات السابقة"
-                    value={formData.previousSurgeries}
-                    onChange={handleChange}
-                    disabled={loading}
-                    rows={3}
-                  />
-                </div>
-
-                {/* Drug Allergies */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">حساسية من أدوية</label>
-                  <Textarea
-                    name="drugAllergies"
-                    placeholder="أدخل الأدوية التي تسبب حساسية"
-                    value={formData.drugAllergies}
-                    onChange={handleChange}
-                    disabled={loading}
-                    rows={3}
-                  />
-                </div>
-
-                {/* Current Medications */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">الأدوية الحالية</label>
-                  <Textarea
-                    name="currentMedications"
-                    placeholder="أدخل الأدوية التي تتناولها حالياً"
-                    value={formData.currentMedications}
-                    onChange={handleChange}
-                    disabled={loading}
-                    rows={3}
-                  />
-                </div>
-
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      جاري التسجيل...
-                    </>
-                  ) : (
-                    'التسجيل والمتابعة'
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        ) : (
-          // Consultation Form
-          <Card>
-            <CardHeader>
-              <CardTitle>تقديم استشارة طبية</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleConsultation} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">رقم الهاتف</label>
-                  <Input
-                    type="tel"
-                    placeholder="01xxxxxxxxx"
-                    disabled={loading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">البريد الإلكتروني</label>
-                  <Input
-                    type="email"
-                    placeholder="your@email.com"
-                    disabled={loading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">التخصص المطلوب</label>
-                  <Select disabled={loading}>
-                    <option>-- اختر التخصص --</option>
-                    <option>طب الأسرة</option>
-                    <option>الأسنان</option>
-                    <option>العيون</option>
-                    <option>الجلدية</option>
-                    <option>الأطفال</option>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">نص الشكوى</label>
-                  <Textarea
-                    placeholder="أدخل شكواك بالتفصيل"
-                    disabled={loading}
-                    rows={4}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">الأعراض الحالية</label>
-                  <Textarea
-                    placeholder="أدخل الأعراض التي تشعر بها"
-                    disabled={loading}
-                    rows={4}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">الوزن (كجم)</label>
-                    <Input type="number" placeholder="0" disabled={loading} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">الطول (سم)</label>
-                    <Input type="number" placeholder="0" disabled={loading} />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">ضغط الدم</label>
-                    <Input placeholder="120/80" disabled={loading} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">درجة الحرارة</label>
-                    <Input type="number" placeholder="37" disabled={loading} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">النبض</label>
-                    <Input type="number" placeholder="0" disabled={loading} />
-                  </div>
-                </div>
-
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      جاري الإرسال...
-                    </>
-                  ) : (
-                    'إرسال الاستشارة'
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        )}
+          <Button
+            variant="outline"
+            className="h-16 text-base gap-2"
+          >
+            <AlertTriangle className="w-5 h-5" />
+            إيقاف العيادة
+          </Button>
+        </div>
       </div>
     </div>
   )
