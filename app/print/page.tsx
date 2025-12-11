@@ -58,7 +58,6 @@ export default function PrintPage() {
 
   const from = parseInt(fromNumber) || 0
   const to = parseInt(toNumber) || 0
-  const clinic = clinics.find((c) => c.id === selectedClinic)
 
   // Generate ticket numbers for preview
   const ticketNumbers = []
