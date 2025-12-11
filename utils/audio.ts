@@ -22,8 +22,6 @@ export class AudioQueue {
   private isPlaying = false
   private currentAudio: HTMLAudioElement | null = null
 
-  constructor(private audioPath: string = AUDIO_PATH) {}
-
   /**
    * Add audio file to queue
    */
