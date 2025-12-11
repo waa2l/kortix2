@@ -1,19 +1,68 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { supabase } from '@/lib/supabase'
+
+interface DoctorData {
+  id: string
+  name: string
+  doctor_number: string
+  specialty: string
+  annual_leave_balance: number
+  emergency_leave_balance: number
+  absence_days: number
+  work_status: string
+  clinic: {
+    name: string
+  } | null
+}
 
 export default function DoctorsPage() {
   const [step, setStep] = useState<'login' | 'dashboard'>('login')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [doctorNumber, setDoctorNumber] = useState('')
+  const [nationalId, setNationalId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [doctorData, setDoctorData] = useState<DoctorData | null>(null)
+
+  // Check session on load
+  useEffect(() => {
+    const session = localStorage.getItem('doctorSession')
+    if (session) {
+      const { id } = JSON.parse(session)
+      fetchDoctorData(id)
+    }
+  }, [])
+
+  const fetchDoctorData = async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('doctors')
+        .select('*, clinic:clinics(name)')
+        .eq('id', id)
+        .single()
+
+      if (error) throw error
+      
+      // Fix types casting for joined table
+      const doctor = data as any
+      setDoctorData({
+        ...doctor,
+        clinic: doctor.clinic // Supabase joins return object or array
+      })
+      setStep('dashboard')
+    } catch (err) {
+      console.error(err)
+      localStorage.removeItem('doctorSession')
+      setStep('login')
+    }
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,23 +70,44 @@ export default function DoctorsPage() {
     setLoading(true)
 
     try {
-      if (!email || !password) {
-        setError('البريد الإلكتروني وكلمة المرور مطلوبة')
+      if (!doctorNumber || !nationalId) {
+        setError('يرجى إدخال كود الطبيب والرقم القومي')
+        setLoading(false)
         return
       }
 
-      // Mock authentication
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Verify credentials against doctors table
+      const { data, error } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('doctor_number', doctorNumber)
+        .eq('national_id', nationalId)
+        .single()
 
-      localStorage.setItem('doctorSession', JSON.stringify({ email, timestamp: Date.now() }))
+      if (error || !data) {
+        setError('بيانات الدخول غير صحيحة')
+        setLoading(false)
+        return
+      }
+
+      localStorage.setItem('doctorSession', JSON.stringify({ id: data.id, timestamp: Date.now() }))
       toast.success('تم تسجيل الدخول بنجاح')
-      setStep('dashboard')
+      fetchDoctorData(data.id)
+      
     } catch (err) {
-      setError('فشل تسجيل الدخول')
+      setError('حدث خطأ أثناء الاتصال')
       toast.error('فشل تسجيل الدخول')
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('doctorSession')
+    setStep('login')
+    setDoctorNumber('')
+    setNationalId('')
+    setDoctorData(null)
   }
 
   if (step === 'login') {
@@ -58,23 +128,23 @@ export default function DoctorsPage() {
                 )}
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">البريد الإلكتروني</label>
+                  <label className="text-sm font-medium">كود الطبيب</label>
                   <Input
-                    type="email"
-                    placeholder="doctor@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="text"
+                    placeholder="DOC001"
+                    value={doctorNumber}
+                    onChange={(e) => setDoctorNumber(e.target.value)}
                     disabled={loading}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">كلمة المرور</label>
+                  <label className="text-sm font-medium">الرقم القومي (كلمة المرور)</label>
                   <Input
                     type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="الرقم القومي"
+                    value={nationalId}
+                    onChange={(e) => setNationalId(e.target.value)}
                     disabled={loading}
                   />
                 </div>
@@ -89,12 +159,6 @@ export default function DoctorsPage() {
                     'تسجيل الدخول'
                   )}
                 </Button>
-
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
-                  <p className="font-medium mb-1">بيانات التجربة:</p>
-                  <p>البريد: doctor@example.com</p>
-                  <p>كلمة المرور: password123</p>
-                </div>
               </form>
             </CardContent>
           </Card>
@@ -115,12 +179,9 @@ export default function DoctorsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-medical-900">صفحة الطبيب</h1>
-          <Link href="/">
-            <Button variant="outline" className="gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              العودة
-            </Button>
-          </Link>
+          <Button variant="outline" onClick={handleLogout} className="gap-2">
+            تسجيل خروج
+          </Button>
         </div>
 
         {/* Doctor Info */}
@@ -130,7 +191,7 @@ export default function DoctorsPage() {
               <CardTitle className="text-sm font-medium text-medical-600">الاسم</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-medical-900">د. أحمد محمد</p>
+              <p className="text-xl font-bold text-medical-900">{doctorData?.name}</p>
             </CardContent>
           </Card>
 
@@ -139,7 +200,7 @@ export default function DoctorsPage() {
               <CardTitle className="text-sm font-medium text-medical-600">التخصص</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-medical-900">طب الأسرة</p>
+              <p className="text-xl font-bold text-medical-900">{doctorData?.specialty}</p>
             </CardContent>
           </Card>
 
@@ -148,7 +209,9 @@ export default function DoctorsPage() {
               <CardTitle className="text-sm font-medium text-medical-600">الحالة</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-success-600">نشط</p>
+              <p className={`text-xl font-bold ${doctorData?.work_status === 'active' ? 'text-success-600' : 'text-orange-600'}`}>
+                {doctorData?.work_status === 'active' ? 'نشط' : doctorData?.work_status}
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -164,9 +227,6 @@ export default function DoctorsPage() {
           <Button variant="outline" className="flex-1 md:flex-none">
             طلبات الإجازات
           </Button>
-          <Button variant="outline" className="flex-1 md:flex-none">
-            الاستشارات
-          </Button>
         </div>
 
         {/* Profile Section */}
@@ -178,27 +238,11 @@ export default function DoctorsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <p className="text-sm text-medical-600 mb-1">رقم الطبيب</p>
-                <p className="text-lg font-bold text-medical-900">DOC001</p>
-              </div>
-              <div>
-                <p className="text-sm text-medical-600 mb-1">رقم الهاتف</p>
-                <p className="text-lg font-bold text-medical-900">01012345678</p>
-              </div>
-              <div>
-                <p className="text-sm text-medical-600 mb-1">الرقم القومي</p>
-                <p className="text-lg font-bold text-medical-900">29001011234567</p>
+                <p className="text-lg font-bold text-medical-900">{doctorData?.doctor_number}</p>
               </div>
               <div>
                 <p className="text-sm text-medical-600 mb-1">العيادة</p>
-                <p className="text-lg font-bold text-medical-900">طب الأسرة</p>
-              </div>
-              <div>
-                <p className="text-sm text-medical-600 mb-1">الشيفت</p>
-                <p className="text-lg font-bold text-medical-900">صباحي</p>
-              </div>
-              <div>
-                <p className="text-sm text-medical-600 mb-1">أيام العمل</p>
-                <p className="text-lg font-bold text-medical-900">السبت - الخميس</p>
+                <p className="text-lg font-bold text-medical-900">{doctorData?.clinic?.name || 'غير محدد'}</p>
               </div>
             </div>
           </CardContent>
@@ -213,15 +257,15 @@ export default function DoctorsPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="p-4 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-600 mb-2">الإجازات الاعتيادية</p>
-                <p className="text-3xl font-bold text-blue-900">20</p>
+                <p className="text-3xl font-bold text-blue-900">{doctorData?.annual_leave_balance || 0}</p>
               </div>
               <div className="p-4 bg-green-50 rounded-lg">
                 <p className="text-sm text-green-600 mb-2">الإجازات العارضة</p>
-                <p className="text-3xl font-bold text-green-900">3</p>
+                <p className="text-3xl font-bold text-green-900">{doctorData?.emergency_leave_balance || 0}</p>
               </div>
               <div className="p-4 bg-orange-50 rounded-lg">
                 <p className="text-sm text-orange-600 mb-2">أيام الغياب</p>
-                <p className="text-3xl font-bold text-orange-900">0</p>
+                <p className="text-3xl font-bold text-orange-900">{doctorData?.absence_days || 0}</p>
               </div>
             </div>
           </CardContent>
