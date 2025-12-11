@@ -28,19 +28,20 @@ export default function SettingsPage() {
       try {
         const { data, error } = await supabase.from('centers').select('*').limit(1).single()
         
-        // تم إضافة استخدام للمتغير error لتجاوز الخطأ
-        if (error && error.code !== 'PGRST116') { // PGRST116 تعني لا توجد صفوف
+        if (error && error.code !== 'PGRST116') {
             console.error('Error fetching settings:', error)
         }
 
         if (data) {
-          setCenterId(data.id)
+          // تم استخدام as any هنا لتجاوز مشكلة الأنواع
+          const centerData = data as any
+          setCenterId(centerData.id)
           setSettings({
-            centerName: data.name,
-            newsTicker: data.news_ticker || '',
-            tickerSpeed: data.ticker_speed || 30,
-            alertDuration: data.alert_duration || 5,
-            speechSpeed: data.speech_speed || 1.0
+            centerName: centerData.name,
+            newsTicker: centerData.news_ticker || '',
+            tickerSpeed: centerData.ticker_speed || 30,
+            alertDuration: centerData.alert_duration || 5,
+            speechSpeed: centerData.speech_speed || 1.0
           })
         }
       } catch (error) {
