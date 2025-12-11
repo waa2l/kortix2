@@ -15,9 +15,6 @@ import {
   Menu,
   X,
   LayoutDashboard,
-  Printer,
-  Calendar,
-  MessageSquare,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
