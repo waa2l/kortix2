@@ -28,6 +28,11 @@ export default function SettingsPage() {
       try {
         const { data, error } = await supabase.from('centers').select('*').limit(1).single()
         
+        // تم إضافة استخدام للمتغير error لتجاوز الخطأ
+        if (error && error.code !== 'PGRST116') { // PGRST116 تعني لا توجد صفوف
+            console.error('Error fetching settings:', error)
+        }
+
         if (data) {
           setCenterId(data.id)
           setSettings({
