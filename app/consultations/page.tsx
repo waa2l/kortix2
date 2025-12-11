@@ -1,5 +1,3 @@
-// app/consultations/page.tsx
-
 'use client'
 
 import { useState } from 'react'
@@ -9,21 +7,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Loader2, CheckCircle, Search, Clock, MessageCircle } from 'lucide-react'
+// تم تصحيح الاستيراد هنا: استبدال MessageCircle بـ MessageSquare
+import { ArrowLeft, Loader2, CheckCircle, Search, Clock, MessageSquare } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
 import { toArabicNumbers, formatArabicDate } from '@/utils/arabic'
 
-// ... (نفس الـ interfaces والـ state السابقة)
-
 export default function ConsultationsPage() {
-  // إضافة حالة جديدة للتنقل
   const [activeTab, setActiveTab] = useState<'new' | 'track'>('new')
   
-  // States للتقديم (موجودة سابقاً)
   const [step, setStep] = useState<'register' | 'consult'>('register')
   const [patientId, setPatientId] = useState<string | null>(null)
-  // ... (باقي الـ states الخاصة بالنموذج كما هي) ...
+  
   const [formData, setFormData] = useState({
     fullName: '',
     nationalId: '',
@@ -54,7 +49,6 @@ export default function ConsultationsPage() {
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  // States جديدة للمتابعة
   const [trackNationalId, setTrackNationalId] = useState('')
   const [myConsultations, setMyConsultations] = useState<any[]>([])
   const [hasSearched, setHasSearched] = useState(false)
@@ -68,7 +62,6 @@ export default function ConsultationsPage() {
     'أخرى',
   ]
 
-  // ... (نفس دوال handleChange, handleConsultChange, handleDiseaseChange الموجودة سابقاً) ...
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target
     if (type === 'checkbox') {
@@ -93,12 +86,10 @@ export default function ConsultationsPage() {
     }))
   }
 
-  // ... (نفس دالة handleRegister الموجودة سابقاً) ...
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     try {
-      // (نفس الكود السابق للتحقق وجلب المركز)
       const { data: centers } = await supabase.from('centers').select('id').limit(1)
       const centerId = (centers as any)?.[0]?.id
       if (!centerId) { toast.error('خطأ: لا يوجد مركز معرف'); setLoading(false); return }
@@ -144,14 +135,12 @@ export default function ConsultationsPage() {
     }
   }
 
-  // ... (نفس دالة handleConsultation الموجودة سابقاً) ...
   const handleConsultation = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     try {
       if (!patientId) { toast.error('خطأ: لم يتم التعرف على المريض'); return }
 
-      // تأكد أن الجدول هو consultations
       const { error } = await (supabase.from('consultations') as any).insert({
         patient_id: patientId,
         specialty_required: consultData.specialty,
@@ -177,7 +166,6 @@ export default function ConsultationsPage() {
     }
   }
 
-  // --- دالة جديدة: البحث عن الاستشارات ---
   const handleTrackConsultations = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!trackNationalId || trackNationalId.length !== 14) {
@@ -188,7 +176,6 @@ export default function ConsultationsPage() {
     setLoading(true)
     setHasSearched(true)
     try {
-      // 1. البحث عن المريض
       const { data: patient } = await supabase
         .from('patients')
         .select('id')
@@ -201,10 +188,9 @@ export default function ConsultationsPage() {
         return
       }
 
-      // 2. جلب استشارات هذا المريض
       const { data: consults, error } = await supabase
         .from('consultations')
-        .select('*, doctors(name)') // جلب اسم الطبيب إذا وجد
+        .select('*, doctors(name)')
         .eq('patient_id', (patient as any).id)
         .order('created_at', { ascending: false })
 
@@ -220,7 +206,6 @@ export default function ConsultationsPage() {
   }
 
   if (submitted) {
-    // (نفس واجهة النجاح السابقة)
     return (
       <div className="min-h-screen bg-gradient-to-br from-medical-50 to-medical-100 flex items-center justify-center p-4">
         <Card className="max-w-md w-full border-2 border-success-500">
@@ -238,7 +223,6 @@ export default function ConsultationsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-medical-50 to-medical-100 p-4">
       <div className="max-w-3xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-medical-900">الاستشارات الطبية</h1>
           <Link href="/">
@@ -249,7 +233,6 @@ export default function ConsultationsPage() {
           </Link>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-4 mb-6">
           <Button 
             variant={activeTab === 'new' ? 'default' : 'outline'} 
@@ -268,15 +251,12 @@ export default function ConsultationsPage() {
         </div>
 
         {activeTab === 'new' ? (
-          // عرض نموذج التسجيل أو الاستشارة (الكود القديم)
           <>
             {step === 'register' ? (
               <Card>
                 <CardHeader><CardTitle>بيانات المريض</CardTitle></CardHeader>
                 <CardContent>
                   <form onSubmit={handleRegister} className="space-y-4">
-                    {/* ... (نفس حقول نموذج التسجيل السابقة) ... */}
-                    {/* اختصاراً للكود، استخدم نفس الحقول الموجودة في الكود الأصلي هنا */}
                     <div className="space-y-2">
                       <label className="text-sm font-medium">الاسم الرباعي</label>
                       <Input type="text" name="fullName" value={formData.fullName} onChange={handleChange} required />
@@ -309,7 +289,6 @@ export default function ConsultationsPage() {
                 <CardHeader><CardTitle>تفاصيل الاستشارة</CardTitle></CardHeader>
                 <CardContent>
                   <form onSubmit={handleConsultation} className="space-y-4">
-                    {/* ... (نفس حقول نموذج الاستشارة السابقة) ... */}
                     <div className="space-y-2">
                       <label className="text-sm font-medium">التخصص</label>
                       <Select name="specialty" value={consultData.specialty} onChange={handleConsultChange} required>
@@ -338,7 +317,6 @@ export default function ConsultationsPage() {
             )}
           </>
         ) : (
-          // تبويب المتابعة الجديد
           <div className="space-y-6">
             <Card>
               <CardHeader><CardTitle>البحث عن استشارات سابقة</CardTitle></CardHeader>
