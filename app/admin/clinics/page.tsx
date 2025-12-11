@@ -90,11 +90,13 @@ export default function ClinicsPage() {
         if (error) throw error
         toast.success('تم تحديث العيادة بنجاح')
       } else {
-        // إضافة جديد - تجاوز التحقق من الأنواع
+        // إضافة جديد
         
         // جلب معرف المركز الأول
         const { data: centers } = await supabase.from('centers').select('id').limit(1)
-        const centerId = centers?.[0]?.id
+        
+        // FIX: استخدام as any هنا لتجنب خطأ Type error: Property 'id' does not exist on type 'never'
+        const centerId = (centers as any)?.[0]?.id
 
         if (!centerId) {
             toast.error('لا يوجد مركز معرف في النظام. يرجى إنشاء مركز أولاً في قاعدة البيانات.')
