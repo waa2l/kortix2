@@ -13,9 +13,21 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react'
-import { toArabicNumbers, formatArabicDateTime } from '@/utils/arabic'
+import { toArabicNumbers, formatArabicDateTime, formatArabicTime } from '@/utils/arabic'
 import { QRCodeCanvas } from 'qrcode.react'
 import toast from 'react-hot-toast'
+import { supabase } from '@/lib/supabase'
+import { playPatientCallAnnouncement } from '@/utils/audio'
+
+// تعريف واجهة العيادة بناءً على قاعدة البيانات
+interface Clinic {
+  id: string
+  name: string
+  clinic_number: number
+  current_number: number
+  is_active: boolean
+  last_call_time: string | null
+}
 
 export default function DisplayPage() {
   const [selectedScreen, setSelectedScreen] = useState('1')
@@ -23,14 +35,20 @@ export default function DisplayPage() {
   const [zoom, setZoom] = useState(100)
   const [isMuted, setIsMuted] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
+  
+  // States for DB data
+  const [clinics, setClinics] = useState<Clinic[]>([])
+  const [newsTicker, setNewsTicker] = useState('أهلا وسهلا بكم في المركز الطبي')
+  
   const [notification, setNotification] = useState<{
     message: string
     timestamp: string
     show: boolean
   } | null>(null)
+  
   const displayRef = useRef<HTMLDivElement>(null)
 
-  // Update time
+  // Update time clock
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date())
@@ -38,14 +56,86 @@ export default function DisplayPage() {
     return () => clearInterval(timer)
   }, [])
 
-  // Mock clinic data
-  const clinics = [
-    { id: 1, name: 'طب الأسرة', currentNumber: 25, lastCall: '08:45', status: 'active' },
-    { id: 2, name: 'الأسنان', currentNumber: 12, lastCall: '08:40', status: 'active' },
-    { id: 3, name: 'العيون', currentNumber: 8, lastCall: '08:35', status: 'inactive' },
-    { id: 4, name: 'الجلدية', currentNumber: 15, lastCall: '08:42', status: 'active' },
-    { id: 5, name: 'الأطفال', currentNumber: 20, lastCall: '08:38', status: 'active' },
-  ]
+  // Fetch Data & Subscribe to Realtime
+  useEffect(() => {
+    const fetchData = async () => {
+      // 1. Fetch Clinics
+      const { data: clinicsData } = await supabase
+        .from('clinics')
+        .select('*')
+        .order('clinic_number', { ascending: true })
+      
+      if (clinicsData) {
+        setClinics(clinicsData)
+      }
+
+      // 2. Fetch News Ticker (from first center)
+      const { data: centerData } = await supabase
+        .from('centers')
+        .select('news_ticker')
+        .limit(1)
+        .single()
+      
+      if (centerData?.news_ticker) {
+        setNewsTicker(centerData.news_ticker)
+      }
+    }
+
+    fetchData()
+
+    // 3. Realtime Subscription
+    const channel = supabase
+      .channel('display_channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'clinics' },
+        (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            const updatedClinic = payload.new as Clinic
+            
+            // تحديث القائمة
+            setClinics((prev) => 
+              prev.map((c) => c.id === updatedClinic.id ? updatedClinic : c)
+            )
+
+            // تشغيل الصوت وإظهار إشعار عند تغيير الرقم
+            const oldClinic = payload.old as Partial<Clinic>
+            if (updatedClinic.current_number !== oldClinic.current_number && updatedClinic.current_number > 0) {
+              
+              // إظهار إشعار
+              setNotification({
+                message: `العميل رقم ${toArabicNumbers(updatedClinic.current_number)} - ${updatedClinic.name}`,
+                timestamp: formatArabicTime(new Date()),
+                show: true
+              })
+
+              // إخفاء الإشعار بعد 5 ثواني
+              setTimeout(() => setNotification(null), 5000)
+
+              // تشغيل الصوت (إذا لم يكن مكتوم الصوت)
+              if (!isMuted) {
+                playPatientCallAnnouncement(updatedClinic.current_number, updatedClinic.clinic_number)
+                  .catch(err => console.error("Audio play failed", err))
+              }
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'centers' },
+        (payload) => {
+          if (payload.new.news_ticker) {
+            setNewsTicker(payload.new.news_ticker)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [isMuted])
 
   const handleFullscreen = async () => {
     if (!document.fullscreenElement) {
@@ -66,24 +156,6 @@ export default function DisplayPage() {
   const handleZoomOut = () => {
     setZoom((prev) => Math.max(prev - 10, 50))
   }
-
-  // Simulate notification
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setNotification({
-        message: `على العميل رقم ${toArabicNumbers(44)} التوجه إلى عيادة طب الأسرة`,
-        timestamp: formatArabicDateTime(new Date()),
-        show: true,
-      })
-
-      // Auto hide after 5 seconds
-      setTimeout(() => {
-        setNotification((prev) => prev ? { ...prev, show: false } : null)
-      }, 5000)
-    }, 3000)
-
-    return () => clearTimeout(timer)
-  }, [])
 
   return (
     <div
@@ -148,7 +220,7 @@ export default function DisplayPage() {
             size="icon"
             variant="ghost"
             onClick={() => setIsMuted(!isMuted)}
-            className="text-white hover:bg-medical-800"
+            className={`hover:bg-medical-800 ${isMuted ? 'text-red-400' : 'text-white'}`}
           >
             {isMuted ? (
               <VolumeX className="w-5 h-5" />
@@ -174,31 +246,37 @@ export default function DisplayPage() {
 
         {/* Center - Clinic Cards */}
         <div className="flex-1 p-6 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-4 h-full">
-            {clinics.map((clinic) => (
-              <div
-                key={clinic.id}
-                className={`rounded-2xl p-6 transition-all duration-300 ${
-                  clinic.status === 'active'
-                    ? 'bg-gradient-to-br from-primary-600 to-primary-700 shadow-2xl'
-                    : 'bg-medical-700 opacity-50'
-                } ${notification?.show ? 'animate-pulse' : ''}`}
-              >
-                <div className="text-center">
-                  <p className="text-lg text-primary-100 mb-2">{clinic.name}</p>
-                  <p className="text-6xl font-bold text-white mb-4">
-                    {toArabicNumbers(clinic.currentNumber)}
-                  </p>
-                  <p className="text-sm text-primary-100">
-                    آخر نداء: {clinic.lastCall}
-                  </p>
-                  <p className="text-xs text-primary-200 mt-2">
-                    {clinic.status === 'active' ? '🟢 نشطة' : '🔴 متوقفة'}
-                  </p>
+          {clinics.length === 0 ? (
+             <div className="flex items-center justify-center h-full text-medical-400">
+                جار تحميل العيادات...
+             </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 h-full content-start">
+                {clinics.map((clinic) => (
+                <div
+                    key={clinic.id}
+                    className={`rounded-2xl p-6 transition-all duration-300 ${
+                    clinic.is_active
+                        ? 'bg-gradient-to-br from-primary-600 to-primary-700 shadow-2xl'
+                        : 'bg-medical-700 opacity-50'
+                    } ${notification?.message.includes(clinic.name) ? 'animate-pulse ring-4 ring-yellow-400' : ''}`}
+                >
+                    <div className="text-center">
+                    <p className="text-lg text-primary-100 mb-2">{clinic.name}</p>
+                    <p className="text-6xl font-bold text-white mb-4">
+                        {toArabicNumbers(clinic.current_number)}
+                    </p>
+                    <p className="text-sm text-primary-100">
+                        آخر نداء: {clinic.last_call_time ? formatArabicTime(new Date(clinic.last_call_time)) : '--:--'}
+                    </p>
+                    <p className="text-xs text-primary-200 mt-2">
+                        {clinic.is_active ? '🟢 نشطة' : '🔴 متوقفة'}
+                    </p>
+                    </div>
                 </div>
-              </div>
-            ))}
-          </div>
+                ))}
+            </div>
+          )}
         </div>
 
         {/* Right Side - QR Code & Doctor Photos */}
@@ -231,7 +309,7 @@ export default function DisplayPage() {
 
       {/* Notification Bar */}
       {notification?.show && (
-        <div className="fixed top-0 left-0 right-0 bg-gradient-to-r from-success-500 to-success-600 text-white p-4 shadow-lg animate-slide-in-down">
+        <div className="fixed top-0 left-0 right-0 bg-gradient-to-r from-success-500 to-success-600 text-white p-4 shadow-lg animate-slide-in-down z-50">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div>
               <p className="text-lg font-bold">{notification.message}</p>
@@ -248,9 +326,9 @@ export default function DisplayPage() {
       )}
 
       {/* News Ticker */}
-      <div className="fixed bottom-0 left-0 right-0 bg-medical-950 border-t-4 border-primary-500 overflow-hidden h-16 flex items-center">
+      <div className="fixed bottom-0 left-0 right-0 bg-medical-950 border-t-4 border-primary-500 overflow-hidden h-16 flex items-center z-40">
         <div className="animate-scroll-rtl whitespace-nowrap text-xl font-bold text-primary-400 px-4">
-          أهلا وسهلا بكم في المركز الطبي المتقدم • نرجو الانتظار بهدوء • شكراً لتعاونكم معنا
+          {newsTicker}
         </div>
       </div>
     </div>
