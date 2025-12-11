@@ -97,6 +97,7 @@ export default function ConsultationsPage() {
 
       // Get Center ID
       const { data: centers } = await supabase.from('centers').select('id').limit(1)
+      // استخدام as any هنا أيضاً لتجنب مشاكل مشابهة
       const centerId = (centers as any)?.[0]?.id
 
       if (!centerId) {
@@ -113,7 +114,8 @@ export default function ConsultationsPage() {
         .single()
 
       if (existingPatient) {
-        setPatientId(existingPatient.id)
+        // Fix: استخدام as any لتجاوز خطأ Type error
+        setPatientId((existingPatient as any).id)
         toast.success('تم العثور على بياناتك السابقة')
       } else {
         // Insert new patient
