@@ -17,11 +17,20 @@ import {
   LayoutDashboard,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { supabase } from '@/lib/supabase'
 
 export default function AdminDashboard() {
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [adminEmail, setAdminEmail] = useState('')
+  
+  // States for stats
+  const [stats, setStats] = useState({
+    clinicsCount: 0,
+    doctorsCount: 0,
+    screensCount: 0,
+    appointmentsCount: 0
+  })
 
   useEffect(() => {
     // Check if admin is logged in
@@ -32,7 +41,46 @@ export default function AdminDashboard() {
     }
     const { email } = JSON.parse(session)
     setAdminEmail(email)
+
+    // Fetch Stats
+    fetchStats()
   }, [router])
+
+  const fetchStats = async () => {
+    try {
+      // Get Clinics Count
+      const { count: clinicsCount } = await supabase
+        .from('clinics')
+        .select('*', { count: 'exact', head: true })
+
+      // Get Doctors Count
+      const { count: doctorsCount } = await supabase
+        .from('doctors')
+        .select('*', { count: 'exact', head: true })
+
+      // Get Screens Count
+      const { count: screensCount } = await supabase
+        .from('screens')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true) // Only active screens
+
+      // Get Appointments Count (Today)
+      const today = new Date().toISOString().split('T')[0]
+      const { count: appointmentsCount } = await supabase
+        .from('appointments')
+        .select('*', { count: 'exact', head: true })
+        .eq('appointment_date', today)
+
+      setStats({
+        clinicsCount: clinicsCount || 0,
+        doctorsCount: doctorsCount || 0,
+        screensCount: screensCount || 0,
+        appointmentsCount: appointmentsCount || 0
+      })
+    } catch (error) {
+      console.error('Error fetching stats:', error)
+    }
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('adminSession')
@@ -178,7 +226,7 @@ export default function AdminDashboard() {
                 <CardTitle className="text-sm font-medium text-medical-600">إجمالي العيادات</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-medical-900">0</div>
+                <div className="text-3xl font-bold text-medical-900">{stats.clinicsCount}</div>
               </CardContent>
             </Card>
             <Card>
@@ -186,7 +234,7 @@ export default function AdminDashboard() {
                 <CardTitle className="text-sm font-medium text-medical-600">إجمالي الأطباء</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-medical-900">0</div>
+                <div className="text-3xl font-bold text-medical-900">{stats.doctorsCount}</div>
               </CardContent>
             </Card>
             <Card>
@@ -194,7 +242,7 @@ export default function AdminDashboard() {
                 <CardTitle className="text-sm font-medium text-medical-600">الشاشات النشطة</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-medical-900">0</div>
+                <div className="text-3xl font-bold text-medical-900">{stats.screensCount}</div>
               </CardContent>
             </Card>
             <Card>
@@ -202,7 +250,7 @@ export default function AdminDashboard() {
                 <CardTitle className="text-sm font-medium text-medical-600">المواعيد اليوم</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-medical-900">0</div>
+                <div className="text-3xl font-bold text-medical-900">{stats.appointmentsCount}</div>
               </CardContent>
             </Card>
           </div>
