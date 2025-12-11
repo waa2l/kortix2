@@ -7,11 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-// تم تصحيح الاستيراد هنا: استبدال MessageCircle بـ MessageSquare
 import { ArrowLeft, Loader2, CheckCircle, Search, Clock, MessageSquare } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
-import { toArabicNumbers, formatArabicDate } from '@/utils/arabic'
+// تم إزالة toArabicNumbers من هنا
+import { formatArabicDate } from '@/utils/arabic'
 
 export default function ConsultationsPage() {
   const [activeTab, setActiveTab] = useState<'new' | 'track'>('new')
@@ -223,6 +223,7 @@ export default function ConsultationsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-medical-50 to-medical-100 p-4">
       <div className="max-w-3xl mx-auto">
+        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-medical-900">الاستشارات الطبية</h1>
           <Link href="/">
@@ -233,6 +234,7 @@ export default function ConsultationsPage() {
           </Link>
         </div>
 
+        {/* Tabs */}
         <div className="flex gap-4 mb-6">
           <Button 
             variant={activeTab === 'new' ? 'default' : 'outline'} 
