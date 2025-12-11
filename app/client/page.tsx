@@ -11,7 +11,6 @@ import {
   AlertCircle,
   CheckCircle,
   Phone,
-  Mail,
   MessageSquare,
   ArrowLeft,
   Loader2,
