@@ -14,7 +14,7 @@ import {
   VolumeX,
 } from 'lucide-react'
 import { toArabicNumbers, formatArabicDateTime } from '@/utils/arabic'
-import { QRCodeCanvas } from 'qrcode.react' // تم التعديل هنا
+import { QRCodeCanvas } from 'qrcode.react'
 import toast from 'react-hot-toast'
 
 export default function DisplayPage() {
@@ -206,7 +206,6 @@ export default function DisplayPage() {
           {/* QR Code */}
           <Card className="bg-white p-4 rounded-lg flex-1 flex flex-col items-center justify-center">
             <p className="text-medical-900 font-bold mb-3 text-sm">ادخل من هنا</p>
-            {/* استخدام المكون الجديد هنا */}
             <QRCodeCanvas
               value="https://medical-queue.example.com/client"
               size={150}
