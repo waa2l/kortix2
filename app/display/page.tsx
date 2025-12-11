@@ -13,7 +13,6 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react'
-// تم حذف formatArabicDateTime من الاستيراد
 import { toArabicNumbers, formatArabicTime } from '@/utils/arabic'
 import { QRCodeCanvas } from 'qrcode.react'
 import toast from 'react-hot-toast'
@@ -77,8 +76,10 @@ export default function DisplayPage() {
         .limit(1)
         .single()
       
-      if (centerData?.news_ticker) {
-        setNewsTicker(centerData.news_ticker)
+      // Fix: استخدام as any لتجنب خطأ Type error
+      const center = centerData as any;
+      if (center?.news_ticker) {
+        setNewsTicker(center.news_ticker)
       }
     }
 
@@ -126,8 +127,10 @@ export default function DisplayPage() {
         'postgres_changes', 
         { event: 'UPDATE', schema: 'public', table: 'centers' },
         (payload) => {
-          if (payload.new.news_ticker) {
-            setNewsTicker(payload.new.news_ticker)
+          // استخدام as any هنا أيضاً احتياطاً
+          const newCenter = payload.new as any;
+          if (newCenter.news_ticker) {
+            setNewsTicker(newCenter.news_ticker)
           }
         }
       )
