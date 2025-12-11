@@ -176,30 +176,37 @@ export default function ScreensPage() {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {screens.map((screen) => (
-            <Card key={screen.id}>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>شاشة {screen.screen_number}</CardTitle>
-                  <span className={`px-2 py-1 text-xs rounded-full ${screen.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    {screen.is_active ? 'نشط' : 'معطل'}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p>كلمة المرور: {screen.password}</p>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => handleToggleStatus(screen.id, screen.is_active)} variant="outline">
-                    {screen.is_active ? 'تعطيل' : 'تفعيل'}
-                  </Button>
-                  <Button size="sm" onClick={() => handleEdit(screen)} variant="outline"><Edit2 className="w-4 h-4" /></Button>
-                  <Button size="sm" onClick={() => handleDelete(screen.id)} variant="destructive"><Trash2 className="w-4 h-4" /></Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {/* تم استخدام loadingData هنا لإظهار مؤشر التحميل */}
+        {loadingData ? (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {screens.map((screen) => (
+              <Card key={screen.id}>
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <CardTitle>شاشة {screen.screen_number}</CardTitle>
+                    <span className={`px-2 py-1 text-xs rounded-full ${screen.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {screen.is_active ? 'نشط' : 'معطل'}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p>كلمة المرور: {screen.password}</p>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => handleToggleStatus(screen.id, screen.is_active)} variant="outline">
+                      {screen.is_active ? 'تعطيل' : 'تفعيل'}
+                    </Button>
+                    <Button size="sm" onClick={() => handleEdit(screen)} variant="outline"><Edit2 className="w-4 h-4" /></Button>
+                    <Button size="sm" onClick={() => handleDelete(screen.id)} variant="destructive"><Trash2 className="w-4 h-4" /></Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
