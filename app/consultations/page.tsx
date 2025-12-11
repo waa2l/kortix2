@@ -10,7 +10,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Loader2, CheckCircle, Search, Clock, MessageSquare } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
-// تم إزالة toArabicNumbers من هنا
 import { formatArabicDate } from '@/utils/arabic'
 
 export default function ConsultationsPage() {
@@ -280,6 +279,26 @@ export default function ConsultationsPage() {
                         <option value="child">طفل</option>
                       </Select>
                     </div>
+                    
+                    {/* تم استعادة قسم الأمراض المزمنة هنا */}
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">الأمراض المزمنة</label>
+                        <div className="space-y-2">
+                            {chronicDiseaseOptions.map((disease) => (
+                            <label key={disease} className="flex items-center gap-2">
+                                <input 
+                                    type="checkbox" 
+                                    checked={formData.chronicDiseases.includes(disease)} 
+                                    onChange={() => handleDiseaseChange(disease)} 
+                                    disabled={loading} 
+                                    className="w-4 h-4" 
+                                />
+                                <span className="text-sm">{disease}</span>
+                            </label>
+                            ))}
+                        </div>
+                    </div>
+
                     <Button type="submit" className="w-full" disabled={loading}>
                       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'التالي'}
                     </Button>
