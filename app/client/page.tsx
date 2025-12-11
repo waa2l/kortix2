@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,34 +17,81 @@ import {
 } from 'lucide-react'
 import { toArabicNumbers } from '@/utils/arabic'
 import toast from 'react-hot-toast'
+import { supabase } from '@/lib/supabase'
+
+interface Clinic {
+  id: string
+  name: string
+  current_number: number
+  clinic_number: number
+}
 
 export default function ClientPage() {
   const [step, setStep] = useState<'clinic-select' | 'ticket' | 'complaint'>('clinic-select')
-  const [selectedClinic, setSelectedClinic] = useState('')
+  const [selectedClinic, setSelectedClinic] = useState<Clinic | null>(null)
   const [ticketNumber, setTicketNumber] = useState('')
-  const [currentNumber, setCurrentNumber] = useState(25)
+  const [currentNumber, setCurrentNumber] = useState(0)
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [complaintType, setComplaintType] = useState('complaint')
   const [complaintText, setComplaintText] = useState('')
   const [loading, setLoading] = useState(false)
+  const [clinics, setClinics] = useState<Clinic[]>([])
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info'
     message: string
   } | null>(null)
 
-  const clinics = [
-    { id: '1', name: 'طب الأسرة' },
-    { id: '2', name: 'الأسنان' },
-    { id: '3', name: 'العيون' },
-    { id: '4', name: 'الجلدية' },
-    { id: '5', name: 'الأطفال' },
-  ]
+  // 1. Fetch Clinics
+  useEffect(() => {
+    const fetchClinics = async () => {
+      const { data } = await supabase.from('clinics').select('id, name, current_number, clinic_number').order('clinic_number', { ascending: true })
+      if (data) setClinics(data)
+    }
+    fetchClinics()
+  }, [])
+
+  // 2. Realtime Subscription for Selected Clinic
+  useEffect(() => {
+    if (!selectedClinic) return
+
+    // Set initial number
+    setCurrentNumber(selectedClinic.current_number)
+
+    const channel = supabase
+      .channel(`client_view_${selectedClinic.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'clinics', filter: `id=eq.${selectedClinic.id}` },
+        (payload) => {
+          const newNumber = (payload.new as Clinic).current_number
+          setCurrentNumber(newNumber)
+          
+          // تنبيه إذا اقترب الدور (مثال: إذا كان دور العميل هو الرقم المدخل)
+          if (ticketNumber && parseInt(ticketNumber) === newNumber) {
+             toast.success('حان دورك الآن!', { duration: 10000, icon: '🔔' })
+             playNotificationSound()
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [selectedClinic, ticketNumber])
+
+  const playNotificationSound = () => {
+    const audio = new Audio('/audio/ding.mp3')
+    audio.play().catch(e => console.error(e))
+  }
 
   const handleClinicSelect = (clinicId: string) => {
-    setSelectedClinic(clinicId)
-    setCurrentNumber(25) // Mock current number
-    setStep('ticket')
+    const clinic = clinics.find(c => c.id === clinicId)
+    if (clinic) {
+        setSelectedClinic(clinic)
+        setStep('ticket')
+    }
   }
 
   const handleTicketSubmit = async (e: React.FormEvent) => {
@@ -57,17 +104,17 @@ export default function ClientPage() {
         return
       }
 
-      // Mock submission
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // محاكاة تسجيل التذكرة للمتابعة المحلية فقط
+      // (في الأنظمة المتقدمة يمكن التحقق من وجود الرقم في قاعدة البيانات)
+      await new Promise((resolve) => setTimeout(resolve, 500))
 
       setNotification({
         type: 'success',
-        message: `تم تسجيل رقمك ${toArabicNumbers(parseInt(ticketNumber))}. سيتم استدعاؤك قريباً.`,
+        message: `تم تسجيل رقمك ${toArabicNumbers(parseInt(ticketNumber))}. سيتم تنبيهك عند حلول دورك.`,
       })
 
-      toast.success('تم تسجيل رقمك بنجاح')
+      toast.success('تم تفعيل التنبيهات لرقمك')
 
-      // Auto-hide notification
       setTimeout(() => {
         setNotification(null)
       }, 5000)
@@ -83,22 +130,35 @@ export default function ClientPage() {
     setLoading(true)
 
     try {
-      if (complaintText.length < 140) {
-        toast.error('النص يجب أن يكون 140 حرف على الأقل')
+      if (complaintText.length < 10) {
+        toast.error('الرجاء كتابة تفاصيل أكثر')
+        setLoading(false)
         return
       }
 
-      // Mock submission
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Get Center ID
+      const { data: centers } = await supabase.from('centers').select('id').limit(1)
+      const centerId = (centers as any)?.[0]?.id
+
+      const { error } = await (supabase.from('complaints') as any).insert({
+        center_id: centerId, // قد يكون null إذا لم يوجد مركز، يجب معالجة ذلك في قاعدة البيانات أو هنا
+        message: complaintText,
+        type: complaintType,
+        email: email || null,
+        phone: phone || null,
+        status: 'new'
+      })
+
+      if (error) throw error
 
       toast.success('تم إرسال ' + (complaintType === 'complaint' ? 'الشكوى' : 'الاقتراح') + ' بنجاح')
 
-      // Reset form
       setComplaintText('')
       setEmail('')
       setPhone('')
     } catch (err) {
-      toast.error('حدث خطأ ما')
+      console.error(err)
+      toast.error('حدث خطأ أثناء الإرسال')
     } finally {
       setLoading(false)
     }
@@ -108,7 +168,6 @@ export default function ClientPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-medical-50 to-medical-100 p-4">
         <div className="max-w-4xl mx-auto">
-          {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl font-bold text-medical-900">صفحة العميل</h1>
             <Link href="/">
@@ -119,7 +178,6 @@ export default function ClientPage() {
             </Link>
           </div>
 
-          {/* Clinic Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {clinics.map((clinic) => (
               <Card
@@ -141,14 +199,11 @@ export default function ClientPage() {
     )
   }
 
-  const clinic = clinics.find((c) => c.id === selectedClinic)
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-medical-50 to-medical-100 p-4">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-medical-900">{clinic?.name}</h1>
+          <h1 className="text-3xl font-bold text-medical-900">{selectedClinic?.name}</h1>
           <Button
             variant="outline"
             onClick={() => setStep('clinic-select')}
@@ -159,7 +214,6 @@ export default function ClientPage() {
           </Button>
         </div>
 
-        {/* Current Number Display */}
         <Card className="mb-8 bg-gradient-to-br from-primary-500 to-primary-600 text-white border-0">
           <CardContent className="pt-8">
             <div className="text-center">
@@ -169,7 +223,6 @@ export default function ClientPage() {
           </CardContent>
         </Card>
 
-        {/* Notification */}
         {notification && (
           <Card className={`mb-8 border-2 ${
             notification.type === 'success'
@@ -189,7 +242,6 @@ export default function ClientPage() {
           </Card>
         )}
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-6">
           <Button
             variant={step === 'ticket' ? 'default' : 'outline'}
@@ -197,7 +249,7 @@ export default function ClientPage() {
             className="flex-1"
           >
             <Phone className="w-4 h-4 mr-2" />
-            رقم التذكرة
+            متابعة دوري
           </Button>
           <Button
             variant={step === 'complaint' ? 'default' : 'outline'}
@@ -209,11 +261,10 @@ export default function ClientPage() {
           </Button>
         </div>
 
-        {/* Ticket Form */}
         {step === 'ticket' && (
           <Card>
             <CardHeader>
-              <CardTitle>أدخل رقم التذكرة</CardTitle>
+              <CardTitle>متابعة رقم الانتظار</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleTicketSubmit} className="space-y-4">
@@ -221,51 +272,20 @@ export default function ClientPage() {
                   <label className="text-sm font-medium">رقم التذكرة</label>
                   <Input
                     type="number"
-                    placeholder="أدخل رقم التذكرة"
+                    placeholder="أدخل رقمك الحالي"
                     value={ticketNumber}
                     onChange={(e) => setTicketNumber(e.target.value)}
                     disabled={loading}
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">البريد الإلكتروني (اختياري)</label>
-                  <Input
-                    type="email"
-                    placeholder="your@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">رقم الهاتف (اختياري)</label>
-                  <Input
-                    type="tel"
-                    placeholder="01xxxxxxxxx"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      جاري التحميل...
-                    </>
-                  ) : (
-                    'تسجيل'
-                  )}
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'تفعيل التنبيه'}
                 </Button>
               </form>
             </CardContent>
           </Card>
         )}
 
-        {/* Complaint Form */}
         {step === 'complaint' && (
           <Card>
             <CardHeader>
@@ -286,17 +306,14 @@ export default function ClientPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">النص (140 حرف على الأقل)</label>
+                  <label className="text-sm font-medium">النص</label>
                   <Textarea
-                    placeholder="أدخل نصك هنا..."
+                    placeholder="اكتب تفاصيل الشكوى أو الاقتراح..."
                     value={complaintText}
                     onChange={(e) => setComplaintText(e.target.value)}
                     disabled={loading}
                     rows={5}
                   />
-                  <p className="text-xs text-medical-600">
-                    {complaintText.length} / 140 حرف
-                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -321,15 +338,8 @@ export default function ClientPage() {
                   />
                 </div>
 
-                <Button type="submit" className="w-full" disabled={loading || complaintText.length < 140}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      جاري الإرسال...
-                    </>
-                  ) : (
-                    'إرسال'
-                  )}
+                <Button type="submit" className="w-full" disabled={loading || complaintText.length < 10}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'إرسال'}
                 </Button>
               </form>
             </CardContent>
