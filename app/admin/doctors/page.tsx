@@ -5,32 +5,26 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Plus, Trash2, Loader2, Upload } from 'lucide-react'
+import { Select } from '@/components/ui/select'
+import { ArrowLeft, Plus, Trash2, Loader2, Edit2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
-
-interface Doctor {
-  id: string
-  doctor_number: string
-  name: string
-  phone: string
-  national_id: string
-  specialty: string
-  work_status: string
-}
+import type { Doctor, DoctorInsert, DoctorUpdate } from '@/lib/supabase-types'
 
 export default function DoctorsPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   
   const [formData, setFormData] = useState({
     name: '',
     doctor_number: '',
     phone: '',
     national_id: '',
-    specialty: ''
+    specialty: '',
+    work_status: 'active'
   })
 
   // Fetch doctors
@@ -56,7 +50,7 @@ export default function DoctorsPage() {
     fetchDoctors()
   }, [])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
@@ -72,25 +66,65 @@ export default function DoctorsPage() {
       }
 
       // Get center_id
-      const { data: centers } = await supabase.from('centers').select('id').limit(1)
-      const centerId = (centers as any)?.[0]?.id
+      const { data: centers } = await supabase
+        .from('centers')
+        .select('id')
+        .limit(1)
+        .single()
 
-      if (!centerId) {
+      if (!centers) {
         toast.error('يجب إضافة مركز أولاً')
         return
       }
 
-      const { error } = await (supabase.from('doctors') as any).insert({
-        ...formData,
-        center_id: centerId,
+      if (editingId) {
+        // تحديث
+        const updateData: DoctorUpdate = {
+          name: formData.name,
+          doctor_number: formData.doctor_number,
+          phone: formData.phone,
+          national_id: formData.national_id,
+          specialty: formData.specialty,
+          work_status: formData.work_status as 'active' | 'inactive' | 'on_leave'
+        }
+
+        const { error } = await supabase
+          .from('doctors')
+          .update(updateData)
+          .eq('id', editingId)
+
+        if (error) throw error
+        toast.success('تم تحديث الطبيب بنجاح')
+      } else {
+        // إضافة جديد
+        const insertData: DoctorInsert = {
+          center_id: centers.id,
+          name: formData.name,
+          doctor_number: formData.doctor_number,
+          phone: formData.phone,
+          national_id: formData.national_id,
+          specialty: formData.specialty,
+          work_status: formData.work_status as 'active' | 'inactive' | 'on_leave'
+        }
+
+        const { error } = await supabase
+          .from('doctors')
+          .insert(insertData)
+
+        if (error) throw error
+        toast.success('تم إضافة الطبيب بنجاح')
+      }
+
+      setFormData({ 
+        name: '', 
+        doctor_number: '', 
+        phone: '', 
+        national_id: '', 
+        specialty: '',
         work_status: 'active'
       })
-
-      if (error) throw error
-
-      toast.success('تم إضافة الطبيب بنجاح')
-      setFormData({ name: '', doctor_number: '', phone: '', national_id: '', specialty: '' })
       setShowForm(false)
+      setEditingId(null)
       fetchDoctors()
 
     } catch (err: any) {
@@ -100,10 +134,27 @@ export default function DoctorsPage() {
     }
   }
 
+  const handleEdit = (doctor: Doctor) => {
+    setFormData({
+      name: doctor.name,
+      doctor_number: doctor.doctor_number,
+      phone: doctor.phone,
+      national_id: doctor.national_id,
+      specialty: doctor.specialty,
+      work_status: doctor.work_status
+    })
+    setEditingId(doctor.id)
+    setShowForm(true)
+  }
+
   const handleDelete = async (id: string) => {
     if (confirm('هل تريد حذف هذا الطبيب؟')) {
       try {
-        const { error } = await supabase.from('doctors').delete().eq('id', id)
+        const { error } = await supabase
+          .from('doctors')
+          .delete()
+          .eq('id', id)
+
         if (error) throw error
         
         setDoctors(prev => prev.filter(d => d.id !== id))
@@ -127,7 +178,18 @@ export default function DoctorsPage() {
           </Link>
         </div>
 
-        <Button onClick={() => setShowForm(!showForm)} className="mb-6 gap-2">
+        <Button onClick={() => {
+          setShowForm(!showForm)
+          setEditingId(null)
+          setFormData({ 
+            name: '', 
+            doctor_number: '', 
+            phone: '', 
+            national_id: '', 
+            specialty: '',
+            work_status: 'active'
+          })
+        }} className="mb-6 gap-2">
           <Plus className="w-4 h-4" />
           إضافة طبيب
         </Button>
@@ -135,35 +197,85 @@ export default function DoctorsPage() {
         {showForm && (
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>بيانات الطبيب الجديد</CardTitle>
+              <CardTitle>{editingId ? 'تعديل بيانات الطبيب' : 'بيانات الطبيب الجديد'}</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">اسم الطبيب</label>
-                    <Input name="name" value={formData.name} onChange={handleChange} />
+                    <Input 
+                      name="name" 
+                      value={formData.name} 
+                      onChange={handleChange} 
+                      required 
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">رقم الطبيب (الكود)</label>
-                    <Input name="doctor_number" value={formData.doctor_number} onChange={handleChange} />
+                    <Input 
+                      name="doctor_number" 
+                      value={formData.doctor_number} 
+                      onChange={handleChange} 
+                      required 
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">التخصص</label>
-                    <Input name="specialty" value={formData.specialty} onChange={handleChange} />
+                    <Input 
+                      name="specialty" 
+                      value={formData.specialty} 
+                      onChange={handleChange} 
+                      required 
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">الرقم القومي</label>
-                    <Input name="national_id" value={formData.national_id} onChange={handleChange} />
+                    <Input 
+                      name="national_id" 
+                      value={formData.national_id} 
+                      onChange={handleChange} 
+                      maxLength={14}
+                      required 
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">الهاتف</label>
-                    <Input name="phone" value={formData.phone} onChange={handleChange} />
+                    <Input 
+                      name="phone" 
+                      value={formData.phone} 
+                      onChange={handleChange} 
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">حالة العمل</label>
+                    <Select 
+                      name="work_status" 
+                      value={formData.work_status} 
+                      onChange={handleChange}
+                    >
+                      <option value="active">نشط</option>
+                      <option value="inactive">غير نشط</option>
+                      <option value="on_leave">في إجازة</option>
+                    </Select>
                   </div>
                 </div>
-                <Button type="submit" disabled={loading}>
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'حفظ'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={loading}>
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'حفظ'}
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowForm(false)
+                      setEditingId(null)
+                    }}
+                  >
+                    إلغاء
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
@@ -173,7 +285,9 @@ export default function DoctorsPage() {
           <CardHeader><CardTitle>قائمة الأطباء</CardTitle></CardHeader>
           <CardContent>
             {loadingData ? (
-               <div className="text-center p-4">جاري التحميل...</div>
+               <div className="text-center p-4">
+                 <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -183,6 +297,7 @@ export default function DoctorsPage() {
                       <th className="text-right py-3 px-4 font-bold">الاسم</th>
                       <th className="text-right py-3 px-4 font-bold">التخصص</th>
                       <th className="text-right py-3 px-4 font-bold">الهاتف</th>
+                      <th className="text-right py-3 px-4 font-bold">الحالة</th>
                       <th className="text-right py-3 px-4 font-bold">الإجراءات</th>
                     </tr>
                   </thead>
@@ -194,9 +309,34 @@ export default function DoctorsPage() {
                         <td className="py-3 px-4">{doctor.specialty}</td>
                         <td className="py-3 px-4">{doctor.phone}</td>
                         <td className="py-3 px-4">
-                          <Button size="sm" variant="outline" onClick={() => handleDelete(doctor.id)} className="text-danger-600">
-                            <Trash2 className="w-3 h-3" /> حذف
-                          </Button>
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            doctor.work_status === 'active' 
+                              ? 'bg-green-100 text-green-800'
+                              : doctor.work_status === 'on_leave'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {doctor.work_status === 'active' ? 'نشط' : doctor.work_status === 'on_leave' ? 'إجازة' : 'غير نشط'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => handleEdit(doctor)}
+                            >
+                              <Edit2 className="w-3 h-3" /> تعديل
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => handleDelete(doctor.id)} 
+                              className="text-danger-600"
+                            >
+                              <Trash2 className="w-3 h-3" /> حذف
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -206,18 +346,6 @@ export default function DoctorsPage() {
             )}
           </CardContent>
         </Card>
-        
-        {/* Attendance section placeholder */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-          <Card>
-            <CardHeader><CardTitle>الحضور والانصراف</CardTitle></CardHeader>
-            <CardContent>
-              <Button variant="outline" className="w-full gap-2">
-                <Upload className="w-4 h-4" /> رفع بيانات الحضور
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </div>
   )
