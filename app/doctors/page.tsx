@@ -1,5 +1,3 @@
-// app/doctors/page.tsx
-
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -7,13 +5,12 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea' // تأكد من استيراد Textarea
-import { ArrowLeft, Loader2, AlertCircle, MessageSquare, Send } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
+import { Loader2, MessageSquare, Send } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
 import { formatArabicDate } from '@/utils/arabic'
 
-// ... (نفس الـ interfaces السابقة)
 interface DoctorData {
   id: string
   name: string
@@ -28,7 +25,7 @@ interface DoctorData {
 
 export default function DoctorsPage() {
   const [step, setStep] = useState<'login' | 'dashboard'>('login')
-  const [activeTab, setActiveTab] = useState<'profile' | 'consultations'>('profile') // تبويب جديد
+  const [activeTab, setActiveTab] = useState<'profile' | 'consultations'>('profile')
   
   // Login States
   const [doctorNumber, setDoctorNumber] = useState('')
@@ -42,7 +39,6 @@ export default function DoctorsPage() {
   const [replyText, setReplyText] = useState('')
   const [selectedConsultId, setSelectedConsultId] = useState<string | null>(null)
 
-  // ... (نفس دالة useEffect و login الموجودة سابقاً) ...
   useEffect(() => {
     const session = localStorage.getItem('doctorSession')
     if (session) {
@@ -64,7 +60,6 @@ export default function DoctorsPage() {
       setDoctorData({ ...doctor, clinic: doctor.clinic })
       setStep('dashboard')
       
-      // جلب الاستشارات فور تحميل البيانات
       fetchConsultations(doctor.specialty)
     } catch (err) {
       console.error(err)
@@ -73,10 +68,8 @@ export default function DoctorsPage() {
     }
   }
 
-  // دالة جلب الاستشارات الخاصة بتخصص الطبيب
   const fetchConsultations = async (specialty: string) => {
     try {
-      // جلب الاستشارات التي تطلب نفس التخصص أو المسندة لهذا الطبيب
       const { data, error } = await supabase
         .from('consultations')
         .select(`
@@ -87,7 +80,7 @@ export default function DoctorsPage() {
             chronic_diseases
           )
         `)
-        .eq('specialty_required', specialty) // التصفية حسب التخصص
+        .eq('specialty_required', specialty)
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -97,7 +90,6 @@ export default function DoctorsPage() {
     }
   }
 
-  // دالة إرسال الرد
   const handleReply = async (consultId: string) => {
     if (!replyText) return toast.error('يرجى كتابة الرد')
     
@@ -117,7 +109,6 @@ export default function DoctorsPage() {
       toast.success('تم إرسال الرد بنجاح')
       setReplyText('')
       setSelectedConsultId(null)
-      // تحديث القائمة
       if (doctorData) fetchConsultations(doctorData.specialty)
       
     } catch (err) {
@@ -127,7 +118,6 @@ export default function DoctorsPage() {
     }
   }
 
-  // دالة Login (نفس السابقة)
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(''); setLoading(true)
@@ -160,7 +150,6 @@ export default function DoctorsPage() {
   }
 
   if (step === 'login') {
-    // (نفس واجهة تسجيل الدخول السابقة)
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 via-blue-50 to-primary-100 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
@@ -184,13 +173,11 @@ export default function DoctorsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-medical-50 to-medical-100 p-4">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-medical-900">بوابة الطبيب: {doctorData?.name}</h1>
           <Button variant="outline" onClick={handleLogout} className="gap-2">تسجيل خروج</Button>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
           <Button 
             variant={activeTab === 'profile' ? 'default' : 'outline'} 
@@ -209,7 +196,6 @@ export default function DoctorsPage() {
         </div>
 
         {activeTab === 'profile' ? (
-          // (نفس واجهة الملف الشخصي السابقة)
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <Card><CardContent className="pt-6"><p className="text-sm text-medical-600">التخصص</p><p className="text-xl font-bold">{doctorData?.specialty}</p></CardContent></Card>
@@ -237,7 +223,6 @@ export default function DoctorsPage() {
             </Card>
           </>
         ) : (
-          // تبويب الاستشارات الجديد
           <div className="space-y-4">
             {consultations.length === 0 ? (
               <Card><CardContent className="pt-6 text-center text-medical-500">لا توجد استشارات لهذا التخصص حالياً</CardContent></Card>
@@ -245,7 +230,6 @@ export default function DoctorsPage() {
               consultations.map((consult) => (
                 <Card key={consult.id} className={`border-r-4 ${consult.status === 'open' ? 'border-r-yellow-500' : 'border-r-green-500'}`}>
                   <CardContent className="pt-6">
-                    {/* Header */}
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <p className="font-bold text-lg">{consult.patients?.full_name}</p>
@@ -260,7 +244,6 @@ export default function DoctorsPage() {
                       </span>
                     </div>
 
-                    {/* Patient Details */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 bg-medical-50 p-3 rounded text-sm">
                         <div><span className="text-medical-500">الضغط:</span> {consult.blood_pressure || '-'}</div>
                         <div><span className="text-medical-500">النبض:</span> {consult.pulse || '-'}</div>
@@ -285,7 +268,6 @@ export default function DoctorsPage() {
                         )}
                     </div>
 
-                    {/* Reply Section */}
                     {consult.status === 'open' ? (
                       <div className="mt-4 border-t pt-4">
                         {selectedConsultId === consult.id ? (
