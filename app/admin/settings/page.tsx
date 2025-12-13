@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Save, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
+import type { Center, CenterUpdate } from '@/lib/supabase-types'
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(false)
@@ -26,22 +27,25 @@ export default function SettingsPage() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const { data, error } = await supabase.from('centers').select('*').limit(1).single()
+        const { data, error } = await supabase
+          .from('centers')
+          .select('*')
+          .limit(1)
+          .single()
         
         if (error && error.code !== 'PGRST116') {
-            console.error('Error fetching settings:', error)
+          console.error('Error fetching settings:', error)
         }
 
         if (data) {
-          // تم استخدام as any هنا لتجاوز مشكلة الأنواع
-          const centerData = data as any
-          setCenterId(centerData.id)
+          const center = data as Center
+          setCenterId(center.id)
           setSettings({
-            centerName: centerData.name,
-            newsTicker: centerData.news_ticker || '',
-            tickerSpeed: centerData.ticker_speed || 30,
-            alertDuration: centerData.alert_duration || 5,
-            speechSpeed: centerData.speech_speed || 1.0
+            centerName: center.name,
+            newsTicker: center.news_ticker || '',
+            tickerSpeed: center.ticker_speed || 30,
+            alertDuration: center.alert_duration || 5,
+            speechSpeed: center.speech_speed || 1.0
           })
         }
       } catch (error) {
@@ -55,7 +59,11 @@ export default function SettingsPage() {
     const { name, value } = e.target
     setSettings((prev) => ({
       ...prev,
-      [name]: name === 'tickerSpeed' || name === 'alertDuration' ? parseInt(value) : name === 'speechSpeed' ? parseFloat(value) : value,
+      [name]: name === 'tickerSpeed' || name === 'alertDuration' 
+        ? parseInt(value) 
+        : name === 'speechSpeed' 
+        ? parseFloat(value) 
+        : value,
     }))
   }
 
@@ -64,7 +72,7 @@ export default function SettingsPage() {
     setLoading(true)
 
     try {
-      const dataToUpdate = {
+      const updateData: CenterUpdate = {
         name: settings.centerName,
         news_ticker: settings.newsTicker,
         ticker_speed: settings.tickerSpeed,
@@ -76,18 +84,36 @@ export default function SettingsPage() {
       
       if (centerId) {
         // Update existing
-        const result = await (supabase.from('centers') as any).update(dataToUpdate).eq('id', centerId)
+        const result = await supabase
+          .from('centers')
+          .update(updateData)
+          .eq('id', centerId)
+        
         error = result.error
       } else {
         // Insert new (First time setup)
-        const result = await (supabase.from('centers') as any).insert(dataToUpdate)
+        const result = await supabase
+          .from('centers')
+          .insert({
+            name: settings.centerName,
+            news_ticker: settings.newsTicker,
+            ticker_speed: settings.tickerSpeed,
+            alert_duration: settings.alertDuration,
+            speech_speed: settings.speechSpeed
+          })
+          .select()
+          .single()
+        
         error = result.error
+        if (!error && result.data) {
+          setCenterId((result.data as Center).id)
+        }
       }
 
       if (error) throw error
       toast.success('تم حفظ الإعدادات بنجاح')
-    } catch (err) {
-      toast.error('حدث خطأ أثناء الحفظ')
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ أثناء الحفظ')
     } finally {
       setLoading(false)
     }
@@ -110,7 +136,15 @@ export default function SettingsPage() {
           <Card>
             <CardHeader><CardTitle>اسم المركز</CardTitle></CardHeader>
             <CardContent>
-              <Input type="text" name="centerName" value={settings.centerName} onChange={handleChange} disabled={loading} placeholder="اسم المركز الطبي" />
+              <Input 
+                type="text" 
+                name="centerName" 
+                value={settings.centerName} 
+                onChange={handleChange} 
+                disabled={loading} 
+                placeholder="اسم المركز الطبي"
+                required
+              />
             </CardContent>
           </Card>
 
@@ -119,11 +153,26 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">محتوى الشريط</label>
-                <Textarea name="newsTicker" value={settings.newsTicker} onChange={handleChange} disabled={loading} rows={4} />
+                <Textarea 
+                  name="newsTicker" 
+                  value={settings.newsTicker} 
+                  onChange={handleChange} 
+                  disabled={loading} 
+                  rows={4}
+                  placeholder="أهلا وسهلا بكم في المركز الطبي"
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">سرعة الشريط (ثانية)</label>
-                <Input type="number" name="tickerSpeed" value={settings.tickerSpeed} onChange={handleChange} disabled={loading} min="5" max="60" />
+                <Input 
+                  type="number" 
+                  name="tickerSpeed" 
+                  value={settings.tickerSpeed} 
+                  onChange={handleChange} 
+                  disabled={loading} 
+                  min="5" 
+                  max="60" 
+                />
               </div>
             </CardContent>
           </Card>
@@ -133,17 +182,44 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">مدة عرض التنبيه (ثانية)</label>
-                <Input type="number" name="alertDuration" value={settings.alertDuration} onChange={handleChange} disabled={loading} min="1" max="30" />
+                <Input 
+                  type="number" 
+                  name="alertDuration" 
+                  value={settings.alertDuration} 
+                  onChange={handleChange} 
+                  disabled={loading} 
+                  min="1" 
+                  max="30" 
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">سرعة النطق</label>
-                <Input type="number" name="speechSpeed" value={settings.speechSpeed} onChange={handleChange} disabled={loading} min="0.5" max="2" step="0.1" />
+                <Input 
+                  type="number" 
+                  name="speechSpeed" 
+                  value={settings.speechSpeed} 
+                  onChange={handleChange} 
+                  disabled={loading} 
+                  min="0.5" 
+                  max="2" 
+                  step="0.1" 
+                />
               </div>
             </CardContent>
           </Card>
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? <Loader2 className="animate-spin" /> : <><Save className="mr-2 h-4 w-4" /> حفظ الإعدادات</>}
+            {loading ? (
+              <>
+                <Loader2 className="animate-spin w-4 h-4 mr-2" /> 
+                جاري الحفظ...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" /> 
+                حفظ الإعدادات
+              </>
+            )}
           </Button>
         </form>
       </div>
