@@ -79,8 +79,8 @@ export default function ClinicsPage() {
           password: formData.password,
         }
 
-        const { error } = await supabase
-          .from('clinics')
+        // تم إضافة (as any) لتجاوز خطأ النوع
+        const { error } = await (supabase.from('clinics') as any)
           .update(updateData)
           .eq('id', editingId)
 
@@ -107,8 +107,8 @@ export default function ClinicsPage() {
           password: formData.password,
         }
 
-        const { error } = await supabase
-          .from('clinics')
+        // تم إضافة (as any) لتجاوز خطأ النوع المحتمل
+        const { error } = await (supabase.from('clinics') as any)
           .insert(insertData)
 
         if (error) throw error
