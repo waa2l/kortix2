@@ -79,7 +79,7 @@ export default function ClinicsPage() {
           password: formData.password,
         }
 
-        // تم إضافة (as any) لتجاوز خطأ النوع
+        // استخدام (as any) لتجاوز مشاكل النوع المعقدة مع Supabase Update إذا لزم الأمر
         const { error } = await (supabase.from('clinics') as any)
           .update(updateData)
           .eq('id', editingId)
@@ -99,15 +99,18 @@ export default function ClinicsPage() {
           return
         }
 
+        // إضافة القيم الافتراضية المطلوبة لـ TypeScript
         const insertData: ClinicInsert = {
           center_id: centers.id,
           name: formData.name,
           clinic_number: clinicNumber,
           screen_ids: screensArray,
           password: formData.password,
+          current_number: 0,
+          is_active: true,
+          last_call_time: null
         }
 
-        // تم إضافة (as any) لتجاوز خطأ النوع المحتمل
         const { error } = await (supabase.from('clinics') as any)
           .insert(insertData)
 
