@@ -8,15 +8,7 @@ import { Input } from '@/components/ui/input'
 import { ArrowLeft, Plus, Edit2, Trash2, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
-
-interface Clinic {
-  id: string
-  name: string
-  clinic_number: number
-  screen_ids: number[]
-  password: string
-  current_number: number
-}
+import type { Clinic, ClinicInsert, ClinicUpdate } from '@/lib/supabase-types'
 
 export default function ClinicsPage() {
   const [clinics, setClinics] = useState<Clinic[]>([])
@@ -71,40 +63,53 @@ export default function ClinicsPage() {
         return
       }
 
-      const screensArray = formData.screens.split(',').map((s) => parseInt(s.trim())).filter(n => !isNaN(n))
+      const screensArray = formData.screens
+        .split(',')
+        .map((s) => parseInt(s.trim()))
+        .filter(n => !isNaN(n))
+      
       const clinicNumber = parseInt(formData.number)
 
-      const clinicData = {
-        name: formData.name,
-        clinic_number: clinicNumber,
-        screen_ids: screensArray,
-        password: formData.password,
-      }
-
       if (editingId) {
-        // تحديث - تجاوز التحقق من الأنواع
-        const { error } = await (supabase.from('clinics') as any)
-          .update(clinicData)
+        // تحديث
+        const updateData: ClinicUpdate = {
+          name: formData.name,
+          clinic_number: clinicNumber,
+          screen_ids: screensArray,
+          password: formData.password,
+        }
+
+        const { error } = await supabase
+          .from('clinics')
+          .update(updateData)
           .eq('id', editingId)
 
         if (error) throw error
         toast.success('تم تحديث العيادة بنجاح')
       } else {
         // إضافة جديد
-        
-        // جلب معرف المركز الأول
-        const { data: centers } = await supabase.from('centers').select('id').limit(1)
-        
-        // FIX: استخدام as any هنا لتجنب خطأ Type error: Property 'id' does not exist on type 'never'
-        const centerId = (centers as any)?.[0]?.id
+        const { data: centers } = await supabase
+          .from('centers')
+          .select('id')
+          .limit(1)
+          .single()
 
-        if (!centerId) {
-            toast.error('لا يوجد مركز معرف في النظام. يرجى إنشاء مركز أولاً في قاعدة البيانات.')
-            return
+        if (!centers) {
+          toast.error('لا يوجد مركز معرف في النظام. يرجى إنشاء مركز أولاً')
+          return
         }
 
-        const { error } = await (supabase.from('clinics') as any)
-          .insert({ ...clinicData, center_id: centerId })
+        const insertData: ClinicInsert = {
+          center_id: centers.id,
+          name: formData.name,
+          clinic_number: clinicNumber,
+          screen_ids: screensArray,
+          password: formData.password,
+        }
+
+        const { error } = await supabase
+          .from('clinics')
+          .insert(insertData)
 
         if (error) throw error
         toast.success('تم إضافة العيادة بنجاح')
@@ -197,6 +202,7 @@ export default function ClinicsPage() {
                       value={formData.name}
                       onChange={handleChange}
                       disabled={loading}
+                      required
                     />
                   </div>
 
@@ -208,6 +214,7 @@ export default function ClinicsPage() {
                       value={formData.number}
                       onChange={handleChange}
                       disabled={loading}
+                      required
                     />
                   </div>
 
@@ -231,6 +238,7 @@ export default function ClinicsPage() {
                       value={formData.password}
                       onChange={handleChange}
                       disabled={loading}
+                      required
                     />
                   </div>
                 </div>
@@ -265,56 +273,68 @@ export default function ClinicsPage() {
 
         {/* Loading State */}
         {loadingData ? (
-            <div className="flex justify-center p-8">
-                <Loader2 className="w-8 h-8 animate-spin text-medical-600" />
-            </div>
+          <div className="flex justify-center p-8">
+            <Loader2 className="w-8 h-8 animate-spin text-medical-600" />
+          </div>
         ) : (
-            /* Clinics List */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          /* Clinics List */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {clinics.length === 0 ? (
-                <p className="text-center col-span-3 text-gray-500">لا توجد عيادات مضافة حالياً</p>
+              <p className="text-center col-span-3 text-gray-500">لا توجد عيادات مضافة حالياً</p>
             ) : (
-                clinics.map((clinic) => (
-                    <Card key={clinic.id}>
-                    <CardHeader>
-                        <CardTitle>{clinic.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div>
-                        <p className="text-sm text-medical-600">رقم العيادة</p>
-                        <p className="font-bold text-medical-900">{clinic.clinic_number}</p>
-                        </div>
-                        <div>
-                        <p className="text-sm text-medical-600">الشاشات</p>
-                        <p className="font-bold text-medical-900">
-                            {clinic.screen_ids && clinic.screen_ids.length > 0 ? clinic.screen_ids.join(', ') : 'لا يوجد'}
-                        </p>
-                        </div>
-                        <div className="flex gap-2">
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEdit(clinic)}
-                            className="flex-1 gap-2"
-                        >
-                            <Edit2 className="w-4 h-4" />
-                            تعديل
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDelete(clinic.id)}
-                            className="flex-1 gap-2 text-danger-600 hover:text-danger-700"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                            حذف
-                        </Button>
-                        </div>
-                    </CardContent>
-                    </Card>
-                ))
+              clinics.map((clinic) => (
+                <Card key={clinic.id}>
+                  <CardHeader>
+                    <CardTitle>{clinic.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <p className="text-sm text-medical-600">رقم العيادة</p>
+                      <p className="font-bold text-medical-900">{clinic.clinic_number}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-medical-600">الشاشات</p>
+                      <p className="font-bold text-medical-900">
+                        {clinic.screen_ids && clinic.screen_ids.length > 0 
+                          ? clinic.screen_ids.join(', ') 
+                          : 'لا يوجد'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-medical-600">الحالة</p>
+                      <span className={`inline-block px-2 py-1 text-xs rounded-full ${
+                        clinic.is_active 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {clinic.is_active ? 'نشط' : 'متوقف'}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEdit(clinic)}
+                        className="flex-1 gap-2"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        تعديل
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDelete(clinic.id)}
+                        className="flex-1 gap-2 text-danger-600 hover:text-danger-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        حذف
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
             )}
-            </div>
+          </div>
         )}
       </div>
     </div>
